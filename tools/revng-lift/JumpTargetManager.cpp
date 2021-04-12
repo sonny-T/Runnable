@@ -2257,28 +2257,32 @@ bool JumpTargetManager::isIllegalStaticAddr(uint64_t pc){
   return false;
 }
 
-void JumpTargetManager::harvestNextAddrofBr(uint64_t blockNext){
-  if(!haveTranslatedPC(blockNext, 0)){
-      if(*ptc.isCall){
-        StaticAddrs[blockNext] = 2;
-      }else{
-        StaticAddrs[blockNext] = true;
-      }
-  }
-  if(Statistics and *ptc.isDirectJmp){
-      IndirectBlocksMap::iterator it = DirectJmpBlocks.find(*ptc.isDirectJmp);
-      if(it == DirectJmpBlocks.end())
-          DirectJmpBlocks[*ptc.isDirectJmp] = 1;
-  }
-}
-
-void JumpTargetManager::harvestRetBlocks(uint64_t blockNext, uint64_t ret){
-  if(!haveTranslatedPC(blockNext, 0))
-    StaticAddrs[blockNext] = true;
+void JumpTargetManager::harvestNextAddrofBr(){
+  auto BlockNext = *ptc.isDirectJmp|*ptc.isIndirectJmp|*ptc.isRet;  
+  if(!haveTranslatedPC(BlockNext, 0))
+      StaticAddrs[BlockNext] = true;
+     
   if(Statistics){
-    IndirectBlocksMap::iterator it = RetBlocks.find(ret);
-    if(it == RetBlocks.end())
-        RetBlocks[ret] = 1;
+      if(*ptc.isDirectJmp){
+        IndirectBlocksMap::iterator it = DirectJmpBlocks.find(*ptc.CFIAddr);
+        if(it == DirectJmpBlocks.end())
+            DirectJmpBlocks[*ptc.CFIAddr] = 1;
+      }   
+      if(*ptc.isIndirectJmp){
+        IndirectBlocksMap::iterator it = IndirectJmpBlocks.find(*ptc.CFIAddr);
+        if(it == IndirectJmpBlocks.end())
+            IndirectJmpBlocks[*ptc.CFIAddr] = 1;
+      }
+      if(*ptc.isIndirect){
+        IndirectBlocksMap::iterator it = IndirectCallBlocks.find(*ptc.CFIAddr);
+        if(it == IndirectCallBlocks.end())
+            IndirectCallBlocks[*ptc.CFIAddr] = 1;
+      }
+      if(*ptc.isRet){
+        IndirectBlocksMap::iterator it = RetBlocks.find(*ptc.CFIAddr);
+        if(it == RetBlocks.end())
+          RetBlocks[*ptc.CFIAddr] = 1;
+      }
   }
 }
 

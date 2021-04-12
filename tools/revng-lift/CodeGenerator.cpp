@@ -985,12 +985,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     }
     JumpTargets.SetBlockSize(tmpVA, NextPC);   
 
-    if(*ptc.isRet)
-      JumpTargets.harvestRetBlocks(*ptc.isRet, *ptc.CFIAddr);
-    if(*ptc.isDirectJmp or *ptc.isIndirectJmp or *ptc.isCall){
-      auto nextAddr = *ptc.isDirectJmp | *ptc.isIndirectJmp | *ptc.isCall; 
-      JumpTargets.harvestNextAddrofBr(nextAddr);
-    }
+    if(*ptc.isDirectJmp or *ptc.isIndirectJmp or *ptc.isIndirect or *ptc.isRet) 
+      JumpTargets.harvestNextAddrofBr();
 
     if(EntryFlag and BlockPCFlag){
       JumpTargets.handleEntryBlock(BlockBRs, tmpVA, getPath());
@@ -1024,7 +1020,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 	      ExeNums = ExeNums-1;
 	}
       }	   
-      DynamicVirtualAddress = StaticAddrFlag ? *ptc.syscall_next_eip:ptc.do_syscall2();
+      DynamicVirtualAddress = traverseFLAG ? *ptc.syscall_next_eip:ptc.do_syscall2();
       *ptc.exception_syscall = -1; 
       if(DynamicVirtualAddress == 0 && traverseFLAG && !JumpTargets.BranchTargets.empty()){
         JumpTargets.haveBB = 0;

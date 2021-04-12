@@ -220,8 +220,7 @@ public:
   IndirectBlocksMap RetBlocks;
   IndirectBlocksMap CallBranches;
   IndirectBlocksMap CondBranches;
-  void harvestRetBlocks(uint64_t blockNext, uint64_t ret);
-  void harvestNextAddrofBr(uint64_t blockNext);
+  void harvestNextAddrofBr();
   void StatisticsLog(std::string path);
 
 
