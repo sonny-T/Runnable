@@ -802,7 +802,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   uint64_t tmpVA = 0;
   llvm::BasicBlock *srcBB = nullptr;
   uint64_t srcAddr = 0;
-  llvm::BasicBlock *crashBB = nullptr;
   bool StaticAddrFlag = false;
   bool EntryFlag = false;
   std::vector<uint64_t> BlockPCs1;
@@ -1035,7 +1034,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     if(!JumpTargets.haveBB and *ptc.exception_syscall == 11){
       DynamicVirtualAddress = JumpTargets.handleIllegalMemoryAccess(BlockBRs,tmpVA,ConsumedSize);
       *ptc.exception_syscall = -1;
-      crashBB = nullptr;
     }
     if(StaticAddrFlag and (*ptc.isRet or *ptc.isIndirect or *ptc.isIndirectJmp))
       DynamicVirtualAddress = 0;
@@ -1046,12 +1044,13 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
 //    if(!JumpTargets.haveBB && crashBB==nullptr)
 //      JumpTargets.harvestStaticAddr(BlockBRs);
-
-    if(!JumpTargets.haveBB and *ptc.isIndirect)
-      JumpTargets.handleIndirectCall(BlockBRs,tmpVA, StaticAddrFlag);
-
-    if(!JumpTargets.haveBB and *ptc.isIndirectJmp)
-      JumpTargets.handleIndirectJmp(BlockBRs,tmpVA, StaticAddrFlag);
+   
+    if(BlockBRs)
+      JumpTargets.harvestJumpTableAddr(BlockBRs,tmpVA); 
+    //if(!JumpTargets.haveBB and *ptc.isIndirect)
+    //  JumpTargets.handleIndirectCall(BlockBRs,tmpVA, StaticAddrFlag);
+    //if(!JumpTargets.haveBB and *ptc.isIndirectJmp)
+    //  JumpTargets.handleIndirectJmp(BlockBRs,tmpVA, StaticAddrFlag);
     
     if(traverseFLAG){
    
@@ -1093,7 +1092,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     if(DynamicVirtualAddress){
       auto tmpBB = JumpTargets.registerJT(DynamicVirtualAddress,JTReason::GlobalData);
       //JumpTargets.isContainIndirectInst(DynamicVirtualAddress,tmpVA,tmpBB);
-      if(JumpTargets.haveBB and (crashBB==nullptr)){
+      if(JumpTargets.haveBB){
         // If have translated BB, give Entry an arbitrary value
         Entry = tmpBB;
         VirtualAddress = DynamicVirtualAddress;
@@ -1103,8 +1102,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
         if(srcBB)
 	  JumpTargets.pushpartCFGStack(Entry,VirtualAddress,srcBB,srcAddr);
         srcBB = nullptr;
-	crashBB = nullptr;
-	// For handling crash.
 	JumpTargets.haveBB = 0;
       }
       if(BlockBRs != nullptr){  

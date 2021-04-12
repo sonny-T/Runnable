@@ -238,6 +238,10 @@ public:
   std::vector<uint64_t> IllegalStaticAddrs;
   bool isIllegalStaticAddr(uint64_t pc);
 
+  void harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr);
+  int64_t GetConst(llvm::Instruction *I, llvm::Value *v);
+  void registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, int64_t base, int64_t offset);
+
   void handleIndirectCall(llvm::BasicBlock *thisBlock, uint64_t thisAddr, bool StaticFlag);
   uint64_t handleIllegalMemoryAccess(llvm::BasicBlock *thisBlock, uint64_t thisAddr, size_t ConsumedSize);
   llvm::BasicBlock *getSplitedBlock(llvm::BranchInst *branch);
@@ -265,6 +269,7 @@ public:
   std::pair<bool, uint32_t> islegalAddr(llvm::Value *v);
   bool isDataSegmAddr(uint64_t PC);
   uint32_t StrToInt(const char *str);
+  bool isELFDataSegmAddr(uint64_t PC);
 
   bool isCodeSection(uint64_t PC);
   std::pair<bool, uint32_t> isAccessCodeAddr(llvm::Value *v, uint64_t illaddr);
