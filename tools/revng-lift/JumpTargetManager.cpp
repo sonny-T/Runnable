@@ -675,7 +675,6 @@ BasicBlock *JumpTargetManager::newPC(uint64_t PC, bool &ShouldContinue) {
     Instruction *I = InstrIt->second;
     haveBB = 1;
     return I->getParent();
-    //revng_abort("Why this?\n");
     //return registerJT(PC, JTReason::AmbigousInstruction);
   }
 
@@ -2193,7 +2192,8 @@ void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){
 void JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path){
   BasicBlock::iterator beginInst = thisBlock->begin();
   BasicBlock::iterator endInst = thisBlock->end();
-  
+ 
+  // If encouter block entry address, we consider executed instructions are correct.   
   BasicBlock::iterator lastInst = endInst;
   auto br = dyn_cast<BranchInst>(--lastInst);
   if(br){
@@ -2351,11 +2351,7 @@ bool JumpTargetManager::handleStaticAddr(void){
 void JumpTargetManager::StaticToUnexplore(void){
    for(auto& PC : StaticAddrs){
     BlockMap::iterator TargetIt = JumpTargets.find(PC.first);
-    BlockMap::iterator upper;
-    upper = JumpTargets.upper_bound(PC.first);
-    if(TargetIt == JumpTargets.end() && upper != JumpTargets.end()
-      	     && !isIllegalStaticAddr(PC.first)){
-      errs()<<format_hex(upper->first,0)<<"  :first\n";
+    if(TargetIt == JumpTargets.end() and !isIllegalStaticAddr(PC.first)){
       errs()<<format_hex(PC.first,0)<<" <- static address\n";  
       UnexploreStaticAddr[PC.first] = PC.second;
     }

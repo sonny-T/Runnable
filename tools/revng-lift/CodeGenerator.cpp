@@ -986,8 +986,11 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
     if(*ptc.isDirectJmp or *ptc.isIndirectJmp or *ptc.isIndirect or *ptc.isRet) 
       JumpTargets.harvestNextAddrofBr();
-
-    if(EntryFlag and BlockPCFlag){
+  
+    /* In translation instruction mode:
+     **  haveBB = 0, means that block entry address is suspicious and needs Reg use-def analysis 
+     **  haveBB = 1, means that non-entry address instruction appears in two blocks, no need to handle*/
+    if(EntryFlag and BlockPCFlag and !JumpTargets.haveBB){
       JumpTargets.handleEntryBlock(BlockBRs, tmpVA, getPath());
       EntryFlag = false;
     }
@@ -1035,7 +1038,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       DynamicVirtualAddress = JumpTargets.handleIllegalMemoryAccess(BlockBRs,tmpVA,ConsumedSize);
       *ptc.exception_syscall = -1;
     }
-    if(StaticAddrFlag and (*ptc.isRet or *ptc.isIndirect or *ptc.isIndirectJmp))
+    if(StaticAddrFlag and (*ptc.isIndirect or *ptc.isIndirectJmp))
       DynamicVirtualAddress = 0;
     if(!JumpTargets.haveBB and BlockPCFlag){
       JumpTargets.harvestBlockPCs(BlockPCs);
@@ -1065,15 +1068,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
    
     }
     if(*ptc.isRet and !JumpTargets.haveBB){
-	bool isRecord = false; 
-        for(auto item : JumpTargets.BranchTargets){
-	  if(std::get<0>(item) == DynamicVirtualAddress){
-            isRecord = true;
-	    break;
-	  }
-	}
-        if(!isRecord)	
-	  DynamicVirtualAddress = 0;
+      std::map<uint64_t, bool>::iterator it = JumpTargets.CallBranches.find(DynamicVirtualAddress);
+      if(it == JumpTargets.CallBranches.end())
+        DynamicVirtualAddress = 0;
     }
     
     // Some branch destination addr is 0 
