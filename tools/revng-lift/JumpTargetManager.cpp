@@ -2423,7 +2423,8 @@ void JumpTargetManager::CallNextToStaticAddr(uint32_t PC){
   }
 }
 
-void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, int64_t base, int64_t offset){
+void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, int64_t base, 
+                                          int64_t offset, std::string path){
   if(isExecutableAddress((uint64_t)base))
     return;
   if(!isELFDataSegmAddr((uint64_t)base))
@@ -2444,9 +2445,9 @@ void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t 
         continue;
     if(isExecutableAddress(addr)){
 
-        auto Path = "JumpTable.log";
+        auto JTPath = path + ".JumpTable.log";
         std::ofstream JTAddr;
-        JTAddr.open(Path,std::ofstream::out | std::ofstream::app);
+        JTAddr.open(JTPath,std::ofstream::out | std::ofstream::app);
         JTAddr <<"---------> "<< std::hex << addr <<"\n";
         JTAddr.close();
         
@@ -2457,7 +2458,7 @@ void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t 
   }
 }
 
-void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr){
+void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr,std::string path){
   BasicBlock::iterator begin(thisBlock->begin());
   BasicBlock::iterator end(thisBlock->end());
       
@@ -2479,7 +2480,7 @@ void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64
         isJumpTable  = 0; 
         shl = nullptr;
         if(offset){
-          registerJumpTable(thisBlock,thisAddr,base,offset);
+          registerJumpTable(thisBlock,thisAddr,base,offset,path);
           offset = 0;
           base = 0; 
         }                          
@@ -2495,15 +2496,15 @@ void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64
       isJumpTable = isJumpTable + 2;
       if(isJumpTable==3 or isJumpTable==5){
         if(shl){
-          offset = GetConst(shl, shl->getOperand(1));
+          offset = GetConst(shl, shl->getOperand(1),path);
           shl = nullptr;
         }
         add = dyn_cast<llvm::Instruction>(I);
-        base = base + GetConst(add, add->getOperand(1));
-
-        auto Path = "JumpTable.log";
+        base = base + GetConst(add, add->getOperand(1),path);
+	     
+        auto JTPath = path + ".JumpTable.log";
         std::ofstream JTAddr;
-        JTAddr.open(Path,std::ofstream::out | std::ofstream::app);
+        JTAddr.open(JTPath,std::ofstream::out | std::ofstream::app);
         JTAddr <<"0x"<< std::hex << PC <<"\n";
         JTAddr.close();
       }
@@ -2511,11 +2512,11 @@ void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64
   }
 
   if(offset)
-    registerJumpTable(thisBlock,thisAddr,base,offset);
+    registerJumpTable(thisBlock,thisAddr,base,offset,path);
 
 }
 
-int64_t JumpTargetManager::GetConst(llvm::Instruction *I, llvm::Value *v){
+int64_t JumpTargetManager::GetConst(llvm::Instruction *I, llvm::Value *v, std::string path){
   auto v1 = v;
   auto operateUser = dyn_cast<User>(I);
   auto bb = I->getParent();
@@ -2523,9 +2524,9 @@ int64_t JumpTargetManager::GetConst(llvm::Instruction *I, llvm::Value *v){
   LastAssignmentResult result;
   llvm::Instruction *lastInst = nullptr;
 
-  auto Path = "JumpTable.log";
+  auto JTPath = path + ".JumpTable.log";
   std::ofstream JTAddr;
-  JTAddr.open(Path,std::ofstream::out | std::ofstream::app);
+  JTAddr.open(JTPath,std::ofstream::out | std::ofstream::app);
 
   bool nonConst = true;
   while(nonConst){

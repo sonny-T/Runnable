@@ -591,6 +591,7 @@ GLB	tests/Unit/stackanalysis.cpp	/^const ASID GLB = ASID::globalID();$/;"	v
 GeneratedCodeBasicInfo	include/revng/BasicAnalyses/GeneratedCodeBasicInfo.h	/^  GeneratedCodeBasicInfo() :$/;"	f	class:GeneratedCodeBasicInfo
 GeneratedCodeBasicInfo	include/revng/BasicAnalyses/GeneratedCodeBasicInfo.h	/^class GeneratedCodeBasicInfo : public llvm::ModulePass {$/;"	c
 GetBit	tools/revng-lift/CPUStateAccessAnalysisPass.cpp	/^static int GetBit(uint64_t Input, int Shift) {$/;"	f	file:
+GetConst	tools/revng-lift/JumpTargetManager.cpp	/^int64_t JumpTargetManager::GetConst(llvm::Instruction *I, llvm::Value *v){$/;"	f	class:JumpTargetManager
 GlobalData	include/revng/Support/revng.h	/^  GlobalData = 4, \/\/\/< Obtained digging in global data$/;"	e	enum:JTReason::Values
 GlobalID	lib/StackAnalysis/ASSlot.h	/^    GlobalID,$/;"	e	enum:StackAnalysis::ASID::__anon4
 GrandResult	include/revng/StackAnalysis/StackAnalysis.h	/^  FunctionsSummary GrandResult;$/;"	m	class:StackAnalysis::StackAnalysis
@@ -2520,8 +2521,8 @@ harvestBTBasicBlock	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetMana
 harvestBlockPCs	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestBlockPCs(std::vector<uint64_t> &BlockPCs){$/;"	f	class:JumpTargetManager
 harvestCallBasicBlock	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestCallBasicBlock(llvm::BasicBlock *thisBlock,uint64_t thisAddr){$/;"	f	class:JumpTargetManager
 harvestGlobalData	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestGlobalData() {$/;"	f	class:JumpTargetManager
-harvestNextAddrofBr	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestNextAddrofBr(uint64_t blockNext){$/;"	f	class:JumpTargetManager
-harvestRetBlocks	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestRetBlocks(uint64_t blockNext, uint64_t ret){$/;"	f	class:JumpTargetManager
+harvestJumpTableAddr	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr){$/;"	f	class:JumpTargetManager
+harvestNextAddrofBr	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestNextAddrofBr(){$/;"	f	class:JumpTargetManager
 harvestStaticAddr	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){$/;"	f	class:JumpTargetManager
 harvestbranchBasicBlock	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::harvestbranchBasicBlock(uint64_t nextAddr,$/;"	f	class:JumpTargetManager
 hasDirectContent	lib/StackAnalysis/Element.h	/^  bool hasDirectContent() const { return !DirectContent.isInvalid(); }$/;"	f	class:StackAnalysis::Intraprocedural::Value
@@ -2676,6 +2677,7 @@ isDataSegmAddr	tools/revng-lift/JumpTargetManager.cpp	/^bool JumpTargetManager::
 isDead	tools/revng-lift/OSRA.cpp	/^bool OSRA::isDead(Instruction *I) const {$/;"	f	class:OSRA
 isDestroyed	include/revng/Support/ClassSentinel.h	/^  bool isDestroyed() const { return Destroyed; }$/;"	f	class:ClassSentinel
 isECS	lib/StackAnalysis/InterproceduralAnalysis.cpp	/^      bool isECS() const { return ECS > Total \/ 2; }$/;"	f	struct:StackAnalysis::ClobberedRegistersAnalysis::IterationResult::ECSVote
+isELFDataSegmAddr	tools/revng-lift/JumpTargetManager.cpp	/^bool JumpTargetManager::isELFDataSegmAddr(uint64_t PC){$/;"	f	class:JumpTargetManager
 isEmpty	lib/StackAnalysis/Element.h	/^  bool isEmpty() const { return not(hasDirectContent() || hasTag()); }$/;"	f	class:StackAnalysis::Intraprocedural::Value
 isEnabled	include/revng/Support/Debug.h	/^  bool isEnabled() const { return StaticEnabled && Enabled; }$/;"	f	class:Logger
 isEnabled	include/revng/Support/MonotoneFramework.h	/^    bool isEnabled() const { return Enabled; }$/;"	f	class:MonotoneFrameworkWorkList::PostOrderEntry
@@ -3226,6 +3228,7 @@ registerFunction	lib/StackAnalysis/InterproceduralAnalysis.h	/^  void registerFu
 registerInstruction	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::registerInstruction(uint64_t PC,$/;"	f	class:JumpTargetManager
 registerJT	tools/revng-lift/JumpTargetManager.cpp	/^JumpTargetManager::registerJT(uint64_t PC, JTReason::Values Reason) {$/;"	f	class:JumpTargetManager
 registerJT	tools/revng-lift/JumpTargetManager.h	/^  void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {$/;"	f	class:JumpTargetManager
+registerJumpTable	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, int64_t base, int64_t offset){$/;"	f	class:JumpTargetManager
 registerKiller	tools/revng-lift/NoReturnAnalysis.cpp	/^void NoReturnAnalysis::registerKiller(uint64_t StoredValue,$/;"	f	class:NoReturnAnalysis
 registerKiller	tools/revng-lift/NoReturnAnalysis.h	/^  void registerKiller(llvm::BasicBlock *BB, KillReason::Values Reason) {$/;"	f	class:NoReturnAnalysis
 registerLTR	tools/revng-lift/OSRA.cpp	/^  bool registerLTR(BasicBlock *BB) { return LTR.insert(BB).second; }$/;"	f	class:Reacher
