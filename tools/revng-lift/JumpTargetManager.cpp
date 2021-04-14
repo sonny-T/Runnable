@@ -2189,16 +2189,20 @@ void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){
   }
 }
 
-void JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path){
+//If there is Reg-Mem use-def, return false:turn off EntryFlag mode  
+bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path){
   BasicBlock::iterator beginInst = thisBlock->begin();
   BasicBlock::iterator endInst = thisBlock->end();
  
-  // If encouter block entry address, we consider executed instructions are correct.   
+  /* In translation instruction mode:
+   **  br = null, means that block entry address is suspicious and needs Reg use-def analysis 
+   **  br, means: 1. non-entry address instruction appears in two blocks, no need to handle
+   **             2. if encouter block entry address, we consider executed instructions are correct.  */ 
   BasicBlock::iterator lastInst = endInst;
   auto br = dyn_cast<BranchInst>(--lastInst);
   if(br){
     if(!br->isConditional())
-        return;
+        return false;
   }
 
   auto I = beginInst; 
@@ -2214,13 +2218,14 @@ void JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
               std::ofstream EntryAddr;  
 	      EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
               EntryAddr << std::hex << thisAddr << "\n";
-	      break;
+	      return true;
 	    } 
           }
         }
     }
   }
-  
+
+  return false;  
 }
 
 bool JumpTargetManager::haveDef(llvm::Instruction *I, llvm::Value *v){
@@ -2318,14 +2323,14 @@ void JumpTargetManager::StatisticsLog(std::string path){
   }
 }
 
-bool JumpTargetManager::handleStaticAddr(void){
+uint32_t JumpTargetManager::handleStaticAddr(void){
   if(UnexploreStaticAddr.empty()){
     StaticToUnexplore();
     if(UnexploreStaticAddr.empty())
-      return false;
+      return 0;
   }
   uint64_t addr = 0;
-  uint32_t flag =false;
+  uint32_t flag = 0;
   while(!UnexploreStaticAddr.empty()){
     auto it = UnexploreStaticAddr.begin();
     addr = it->first;
@@ -2719,7 +2724,7 @@ void JumpTargetManager::handleIndirectCall(llvm::BasicBlock *thisBlock,
 bool JumpTargetManager::isAccessMemInst(llvm::Instruction *I){
   BasicBlock::iterator it(I);
   BasicBlock::iterator end = I->getParent()->end();
-  BasicBlock::iterator lastInst(I->getParent()->back());
+  
   auto v = dyn_cast<llvm::Value>(I);
   if(I->getOpcode()==Instruction::Store){
     auto store = dyn_cast<llvm::StoreInst>(I);
@@ -2736,20 +2741,11 @@ bool JumpTargetManager::isAccessMemInst(llvm::Instruction *I){
 	break;
     }
     case llvm::Instruction::Call:{
-	auto callI = dyn_cast<CallInst>(&*it);
-	auto *Callee = callI->getCalledFunction();
-	if(Callee != nullptr && Callee->getName() == "newpc"){
-            it = lastInst;
-	    auto pc = getLimitedValue(callI->getArgOperand(0));
-            errs()<<format_hex(pc,0)<<" <- No Crash point, to explore next addr.\n";
-	}
-	//if(Callee != nullptr && (
-	//		Callee->getName() == "helper_fldt_ST0"||
-	//		Callee->getName() == "helper_fstt_ST0"||
-	//		Callee->getName() == "helper_divq_EAX"||
-	//		Callee->getName() == "helper_idivl_EAX"))
-	//    return true;
-	break;
+        auto callI = dyn_cast<CallInst>(&*it);
+        auto *Callee = callI->getCalledFunction();
+        if(Callee != nullptr && Callee->getName() == "newpc")
+            return false;
+        break;
     }
     case llvm::Instruction::Load:{
         auto loadI = dyn_cast<llvm::LoadInst>(it);

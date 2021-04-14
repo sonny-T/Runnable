@@ -230,7 +230,7 @@ public:
   StaticAddrsMap StaticAddrs;
   StaticAddrsMap UnexploreStaticAddr;
   void harvestStaticAddr(llvm::BasicBlock *thisBlock);
-  bool handleStaticAddr(void);
+  uint32_t handleStaticAddr(void);
   void harvestBlockPCs(std::vector<uint64_t> &BlockPCs);
   void StaticToUnexplore(void);
   void CallNextToStaticAddr(uint32_t PC);
@@ -276,7 +276,7 @@ public:
   std::pair<bool, uint32_t> isAccessCodeAddr(llvm::Value *v, uint64_t illaddr);
   std::map<uint64_t, bool> IllAccessAddr;
   void handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData);
-  void handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path);
+  bool handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path);
   bool haveDef(llvm::Instruction *I, llvm::Value *v);
 
   uint64_t DataSegmStartAddr;

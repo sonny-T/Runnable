@@ -803,10 +803,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   llvm::BasicBlock *srcBB = nullptr;
   uint64_t srcAddr = 0;
   bool StaticAddrFlag = false;
-  bool EntryFlag = false;
+  uint32_t EntryFlag = 0;
   std::vector<uint64_t> BlockPCs1;
   std::vector<uint64_t> &BlockPCs = BlockPCs1;
-  bool BlockPCFlag = false;
   while (Entry != nullptr) {
     jjj++;
     BlockBRs = nullptr;
@@ -987,12 +986,12 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     if(*ptc.isDirectJmp or *ptc.isIndirectJmp or *ptc.isIndirect or *ptc.isRet) 
       JumpTargets.harvestNextAddrofBr();
   
-    /* In translation instruction mode:
-     **  haveBB = 0, means that block entry address is suspicious and needs Reg use-def analysis 
-     **  haveBB = 1, means that non-entry address instruction appears in two blocks, no need to handle*/
-    if(EntryFlag and BlockPCFlag and !JumpTargets.haveBB){
-      JumpTargets.handleEntryBlock(BlockBRs, tmpVA, getPath());
-      EntryFlag = false;
+    if(EntryFlag){
+      EntryFlag = JumpTargets.handleEntryBlock(BlockBRs, tmpVA, getPath());
+      if(EntryFlag)
+        DynamicVirtualAddress = tmpVA + ConsumedSize;
+      else
+        JumpTargets.harvestBlockPCs(BlockPCs); 
     }
       
     }////?end if(!JumpTargets.haveBB)
@@ -1000,63 +999,65 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
+    //if(EntryFlag and JumpTargets.haveBB)
 
-    if(*ptc.isCall and BlockBRs){
-      if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP]) and StaticAddrFlag){
-        ptc.regs[R_ESP] = *ptc.ElfStartStack - 512; 
+    if(!EntryFlag){
+      if(*ptc.isCall and BlockBRs){
+        if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP]) and StaticAddrFlag){
+          ptc.regs[R_ESP] = *ptc.ElfStartStack - 512; 
+        }
+        if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP]))
+          ptc.regs[R_ESP] = ptc.regs[R_EBP];
+        errs()<<*((unsigned long *)ptc.regs[4])<<"<--store callnext\n";
+        errs()<<*ptc.CallNext<<"\n";
+        JumpTargets.harvestCallBasicBlock(BlockBRs,tmpVA);
+        *ptc.isCall = 0;
       }
-      if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP]))
-        ptc.regs[R_ESP] = ptc.regs[R_EBP];
-      errs()<<*((unsigned long *)ptc.regs[4])<<"<--store callnext\n";
-      errs()<<*ptc.CallNext<<"\n";
-      JumpTargets.harvestCallBasicBlock(BlockBRs,tmpVA);
-      *ptc.isCall = 0;
-    }
-
-    if(*ptc.exception_syscall == 0x100){
-      if(ExeInit){
-        if(ptc.regs[R_EAX]==20){
-            if(ExeNums==0)
-	      traverseFLAG = 1;	
-	    if(ExeNums!=0)
-	      ExeNums = ExeNums-1;
-	}
-      }	   
-      DynamicVirtualAddress = traverseFLAG ? *ptc.syscall_next_eip:ptc.do_syscall2();
-      *ptc.exception_syscall = -1; 
-      if(DynamicVirtualAddress == 0 && traverseFLAG && !JumpTargets.BranchTargets.empty()){
-        JumpTargets.haveBB = 0;
-        BlockBRs = nullptr;
-        std::tie(jtVirtualAddress, srcBB, srcAddr) = JumpTargets.BranchTargets.front();
-        JumpTargets.BranchTargets.erase(JumpTargets.BranchTargets.begin());
-        ptc.deletCPULINEState();
-        DynamicVirtualAddress = jtVirtualAddress;  
-        errs()<<"syscall--------------------\n";        
+  
+      if(*ptc.exception_syscall == 0x100){
+        if(ExeInit){
+          if(ptc.regs[R_EAX]==20){
+              if(ExeNums==0)
+  	      traverseFLAG = 1;	
+  	    if(ExeNums!=0)
+  	      ExeNums = ExeNums-1;
+  	}
+        }	   
+        DynamicVirtualAddress = traverseFLAG ? *ptc.syscall_next_eip:ptc.do_syscall2();
+        *ptc.exception_syscall = -1; 
+        if(DynamicVirtualAddress == 0 && traverseFLAG && !JumpTargets.BranchTargets.empty()){
+          JumpTargets.haveBB = 0;
+          BlockBRs = nullptr;
+          std::tie(jtVirtualAddress, srcBB, srcAddr) = JumpTargets.BranchTargets.front();
+          JumpTargets.BranchTargets.erase(JumpTargets.BranchTargets.begin());
+          ptc.deletCPULINEState();
+          DynamicVirtualAddress = jtVirtualAddress;  
+          errs()<<"syscall--------------------\n";        
+        }
+      }
+      if(!JumpTargets.haveBB and *ptc.exception_syscall == 11){
+        DynamicVirtualAddress = JumpTargets.handleIllegalMemoryAccess(BlockBRs,tmpVA,ConsumedSize);
+        *ptc.exception_syscall = -1;
+      }
+      if(StaticAddrFlag and (*ptc.isIndirect or *ptc.isIndirectJmp))
+        DynamicVirtualAddress = 0;
+  
+  //    if(!JumpTargets.haveBB && crashBB==nullptr)
+  //      JumpTargets.harvestStaticAddr(BlockBRs);
+      if(BlockBRs)
+        JumpTargets.harvestJumpTableAddr(BlockBRs,tmpVA,getPath()); 
+      //if(!JumpTargets.haveBB and *ptc.isIndirect)
+      //  JumpTargets.handleIndirectCall(BlockBRs,tmpVA, StaticAddrFlag);
+      //if(!JumpTargets.haveBB and *ptc.isIndirectJmp)
+      //  JumpTargets.handleIndirectJmp(BlockBRs,tmpVA, StaticAddrFlag);
+      if(*ptc.isRet and !JumpTargets.haveBB){
+        std::map<uint64_t, bool>::iterator it = JumpTargets.CallBranches.find(DynamicVirtualAddress);
+        if(it == JumpTargets.CallBranches.end())
+          DynamicVirtualAddress = 0;
       }
     }
-    if(!JumpTargets.haveBB and *ptc.exception_syscall == 11){
-      DynamicVirtualAddress = JumpTargets.handleIllegalMemoryAccess(BlockBRs,tmpVA,ConsumedSize);
-      *ptc.exception_syscall = -1;
-    }
-    if(StaticAddrFlag and (*ptc.isIndirect or *ptc.isIndirectJmp))
-      DynamicVirtualAddress = 0;
-    if(!JumpTargets.haveBB and BlockPCFlag){
-      JumpTargets.harvestBlockPCs(BlockPCs);
-      BlockPCFlag = false;
-    }
 
-//    if(!JumpTargets.haveBB && crashBB==nullptr)
-//      JumpTargets.harvestStaticAddr(BlockBRs);
-   
-    if(BlockBRs)
-      JumpTargets.harvestJumpTableAddr(BlockBRs,tmpVA,getPath()); 
-    //if(!JumpTargets.haveBB and *ptc.isIndirect)
-    //  JumpTargets.handleIndirectCall(BlockBRs,tmpVA, StaticAddrFlag);
-    //if(!JumpTargets.haveBB and *ptc.isIndirectJmp)
-    //  JumpTargets.handleIndirectJmp(BlockBRs,tmpVA, StaticAddrFlag);
-    
     if(traverseFLAG){
-   
     //handle invalid address
     if(!JumpTargets.isExecutableAddress(DynamicVirtualAddress) 
        and !JumpTargets.haveBB)
@@ -1066,11 +1067,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 //      JumpTargets.handleIllegalJumpAddress(BlockBRs,tmpVA);
       DynamicVirtualAddress = 0;
    
-    }
-    if(*ptc.isRet and !JumpTargets.haveBB){
-      std::map<uint64_t, bool>::iterator it = JumpTargets.CallBranches.find(DynamicVirtualAddress);
-      if(it == JumpTargets.CallBranches.end())
-        DynamicVirtualAddress = 0;
     }
     
     // Some branch destination addr is 0 
@@ -1101,7 +1097,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
         srcBB = nullptr;
 	JumpTargets.haveBB = 0;
       }
-      if(BlockBRs != nullptr){  
+      if(BlockBRs != nullptr and !EntryFlag){  
         auto branchLabeledcontent = Translator.branchcontent(); 
         JumpTargets.harvestbranchBasicBlock(VirtualAddress,
 			           tmpVA,
@@ -1112,23 +1108,21 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       std::cerr<<std::hex<<VirtualAddress<<" \n";
     }
 
-    if(JumpTargets.BranchTargets.empty())
+    if(JumpTargets.BranchTargets.empty() and JumpTargets.haveBB)
       DynamicVirtualAddress = 0;
 
     }////?end if(traverseFLAG)
     
     if(Entry==nullptr){
-      /*BlockPCFlag:
+      /*EntryFlag:
        *    true/1 means: need to record first three addrs of Block 
        *    false means:  don't need the first three addrs of a Block 
-       *    2 means:      callnext addr has been explord need 
+       *    2 means:      callnext addr needs 
        *                  to record the first three addrs. */
-      BlockPCFlag = JumpTargets.handleStaticAddr();
+      EntryFlag = JumpTargets.handleStaticAddr();
       JumpTargets.handleEmbeddedDataAddr(getEmbeddedData());
       //StaticAddrFlag: means that entering check point mode 
-      StaticAddrFlag = true;
-      //Means that entering judgement mode whether the correctly identified entry block
-      EntryFlag = true;  
+      StaticAddrFlag = true; 
       std::tie(VirtualAddress, Entry) = JumpTargets.peek();
       std::cerr<<std::hex<<VirtualAddress<<" \n";
     }
