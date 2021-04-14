@@ -2131,9 +2131,16 @@ JumpTargetManager:: getLastAssignment(llvm::Value *v,
   return std::make_pair(UnknowResult,nullptr);   
 }
 
-void JumpTargetManager::harvestBlockPCs(std::vector<uint64_t> &BlockPCs){
+void JumpTargetManager::harvestBlockPCs(std::vector<uint64_t> &BlockPCs,llvm::BasicBlock *thisBlock){
+  BasicBlock::iterator lastInst = thisBlock->end();
+  auto br = dyn_cast<BranchInst>(--lastInst);
+  if(br){
+    if(!br->isConditional())
+        return;
+  }
   if(BlockPCs.empty())
     return;
+
   int i = 0;
   for(auto pc : BlockPCs){
     if(!haveTranslatedPC(pc, 0) && !isIllegalStaticAddr(pc))    
@@ -2189,8 +2196,28 @@ void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){
   }
 }
 
+void JumpTargetManager::TestSuspectDataRegion(std::string path){ 
+  std::string illPath = path + ".illegalEntry.log";
+  std::ofstream EntryAddr; 
+  EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
+  for(auto &p: SuspectDataRegion)
+    EntryAddr << std::hex << p.first <<", "<< p.first+p.second<< "\n";
+}
+
+void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
+  revng_assert(start);
+  SuspectDataRegion[start] = end-start;
+  uint64_t addr = 0;
+  for(addr=start; addr<end; addr++){
+    ptc.exec(addr);
+    if((addr + *ptc.BlockSize) == end)
+      StaticAddrs[addr] = false;
+
+  }
+}
+
 //If there is Reg-Mem use-def, return false:turn off EntryFlag mode  
-bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path){
+bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::string path){
   BasicBlock::iterator beginInst = thisBlock->begin();
   BasicBlock::iterator endInst = thisBlock->end();
  
@@ -2201,8 +2228,13 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
   BasicBlock::iterator lastInst = endInst;
   auto br = dyn_cast<BranchInst>(--lastInst);
   if(br){
-    if(!br->isConditional())
+    if(!br->isConditional()){
+        revng_assert(start);
+        auto end = getInstructionPC(dyn_cast<Instruction>(br));
+        if(end>start)
+          SuspectDataRegion[start] = end-start;
         return false;
+    }
   }
 
   auto I = beginInst; 
@@ -2224,7 +2256,9 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
         }
     }
   }
-
+  if(thisAddr > start)
+    handleSuspectDataRegion(start, thisAddr);
+    
   return false;  
 }
 

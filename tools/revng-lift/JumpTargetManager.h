@@ -231,13 +231,16 @@ public:
   StaticAddrsMap UnexploreStaticAddr;
   void harvestStaticAddr(llvm::BasicBlock *thisBlock);
   uint32_t handleStaticAddr(void);
-  void harvestBlockPCs(std::vector<uint64_t> &BlockPCs);
+  void harvestBlockPCs(std::vector<uint64_t> &BlockPCs,llvm::BasicBlock *thisBlock);
   void StaticToUnexplore(void);
   void CallNextToStaticAddr(uint32_t PC);
 
   std::vector<uint64_t> IllegalStaticAddrs;
   bool isIllegalStaticAddr(uint64_t pc);
 
+  void TestSuspectDataRegion(std::string path);
+  StaticAddrsMap SuspectDataRegion;
+  void handleSuspectDataRegion(uint64_t start, uint64_t end);
   void harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path);
   int64_t GetConst(llvm::Instruction *I, llvm::Value *v, std::string path);
   void registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, 
@@ -276,7 +279,7 @@ public:
   std::pair<bool, uint32_t> isAccessCodeAddr(llvm::Value *v, uint64_t illaddr);
   std::map<uint64_t, bool> IllAccessAddr;
   void handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData);
-  bool handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path);
+  bool handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::string path);
   bool haveDef(llvm::Instruction *I, llvm::Value *v);
 
   uint64_t DataSegmStartAddr;

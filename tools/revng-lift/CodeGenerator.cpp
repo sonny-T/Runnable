@@ -804,6 +804,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   uint64_t srcAddr = 0;
   bool StaticAddrFlag = false;
   uint32_t EntryFlag = 0;
+  uint64_t SuspectEntryAddr = 0;
   std::vector<uint64_t> BlockPCs1;
   std::vector<uint64_t> &BlockPCs = BlockPCs1;
   while (Entry != nullptr) {
@@ -987,11 +988,12 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       JumpTargets.harvestNextAddrofBr();
   
     if(EntryFlag){
-      EntryFlag = JumpTargets.handleEntryBlock(BlockBRs, tmpVA, getPath());
+      EntryFlag = JumpTargets.handleEntryBlock(BlockBRs, tmpVA, SuspectEntryAddr, getPath());
+      DynamicVirtualAddress = 0;
       if(EntryFlag)
         DynamicVirtualAddress = tmpVA + ConsumedSize;
       else
-        JumpTargets.harvestBlockPCs(BlockPCs); 
+        JumpTargets.harvestBlockPCs(BlockPCs, BlockBRs); 
     }
       
     }////?end if(!JumpTargets.haveBB)
@@ -999,7 +1001,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
-    //if(EntryFlag and JumpTargets.haveBB)
+    if(EntryFlag and JumpTargets.haveBB){
+      JumpTargets.handleSuspectDataRegion(SuspectEntryAddr,tmpVA);
+      SuspectEntryAddr = 0;
+    }
 
     if(!EntryFlag){
       if(*ptc.isCall and BlockBRs){
@@ -1035,7 +1040,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
           errs()<<"syscall--------------------\n";        
         }
       }
-      if(!JumpTargets.haveBB and *ptc.exception_syscall == 11){
+      if(BlockBRs and !JumpTargets.haveBB and *ptc.exception_syscall == 11){
         DynamicVirtualAddress = JumpTargets.handleIllegalMemoryAccess(BlockBRs,tmpVA,ConsumedSize);
         *ptc.exception_syscall = -1;
       }
@@ -1108,7 +1113,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       std::cerr<<std::hex<<VirtualAddress<<" \n";
     }
 
-    if(JumpTargets.BranchTargets.empty() and JumpTargets.haveBB)
+    if(JumpTargets.BranchTargets.empty())
       DynamicVirtualAddress = 0;
 
     }////?end if(traverseFLAG)
@@ -1124,12 +1129,14 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       //StaticAddrFlag: means that entering check point mode 
       StaticAddrFlag = true; 
       std::tie(VirtualAddress, Entry) = JumpTargets.peek();
+      SuspectEntryAddr = EntryFlag ? VirtualAddress:0;
       std::cerr<<std::hex<<VirtualAddress<<" \n";
     }
 
   } // End translations loop
 
   embeddedData();
+  JumpTargets.TestSuspectDataRegion(getPath());  
 
   outs()<<"\nRewrite Successful\n";
   JumpTargets.StatisticsLog(getPath());
