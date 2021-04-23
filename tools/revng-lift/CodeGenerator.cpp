@@ -1047,8 +1047,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       if(StaticAddrFlag and (*ptc.isIndirect or *ptc.isIndirectJmp))
         DynamicVirtualAddress = 0;
   
-  //    if(!JumpTargets.haveBB && crashBB==nullptr)
-  //      JumpTargets.harvestStaticAddr(BlockBRs);
+      if(!JumpTargets.haveBB)
+        JumpTargets.harvestStaticAddr(BlockBRs);
       if(BlockBRs)
         JumpTargets.harvestJumpTableAddr(BlockBRs,tmpVA,getPath()); 
       //if(!JumpTargets.haveBB and *ptc.isIndirect)

@@ -230,6 +230,11 @@ public:
   StaticAddrsMap StaticAddrs;
   StaticAddrsMap UnexploreStaticAddr;
   void harvestStaticAddr(llvm::BasicBlock *thisBlock);
+
+  StaticAddrsMap EmbeddedDataAddrs;
+  std::map<int, uint32_t> getBinaryOperationInfo(llvm::Instruction *I);  
+  uint32_t getPreAddArgs(llvm::Value *v);  
+
   uint32_t handleStaticAddr(void);
   void harvestBlockPCs(std::vector<uint64_t> &BlockPCs,llvm::BasicBlock *thisBlock);
   void StaticToUnexplore(void);

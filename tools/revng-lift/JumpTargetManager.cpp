@@ -2009,8 +2009,8 @@ JumpTargetManager:: getLastAssignment(llvm::Value *v,
     case CheckMode:{
         auto op = StrToInt(v->getName().data());
         switch(op){ 
-	  case RCX:
-	  case RDX:
+	  //case RCX:
+	  //case RDX:
 	  case RSI:
 	  case RDI:
           case RSP:
@@ -2152,8 +2152,6 @@ void JumpTargetManager::harvestBlockPCs(std::vector<uint64_t> &BlockPCs,llvm::Ba
 }
 
 void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){
-  if(!isDataSegmAddr(ptc.regs[R_ESP]))
-    return;
   if(thisBlock==nullptr)
     return;
 
@@ -2188,12 +2186,156 @@ void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){
         auto v = store->getValueOperand();
         if(dyn_cast<ConstantInt>(v)){
           auto pc = getLimitedValue(v);
-	  if(!haveTranslatedPC(pc, 0) && !isIllegalStaticAddr(pc))
-	    StaticAddrs[pc] = false;
+	  if(isExecutableAddress(pc)){
+	    EmbeddedDataAddrs[pc] = 0;
+            std::map<int,uint32_t> length = getBinaryOperationInfo(&*I);
+            if(length[0]>EmbeddedDataAddrs[pc])
+              EmbeddedDataAddrs[pc] = length[0];
+            auto iter = length.begin();
+            auto base = pc;
+            iter++;
+            for(;iter!=length.end();iter++){
+              auto cur = iter->first;
+              base = *((uint64_t *)(base+EmbeddedDataAddrs[cur-1]));
+              if(isExecutableAddress(base)){
+                auto TargetIt = EmbeddedDataAddrs.find(base);
+                if(TargetIt == EmbeddedDataAddrs.end()){
+                  EmbeddedDataAddrs[base] = iter->second;
+                }else{
+                  if(iter->second>EmbeddedDataAddrs[base])
+                    EmbeddedDataAddrs[base] = iter->second;
+                }
+              }
+            }
+          }
         }
       }
     }
+
   }
+}
+
+std::map<int,uint32_t> JumpTargetManager::getBinaryOperationInfo(llvm::Instruction *I){
+  BasicBlock::iterator it(I);
+  BasicBlock::iterator end = I->getParent()->end();
+  BasicBlock::iterator lastInst(I->getParent()->back());
+  std::map<int,uint32_t> length;
+
+  auto v = dyn_cast<llvm::Value>(I);
+  if(I->getOpcode()==Instruction::Store){
+    auto store = dyn_cast<llvm::StoreInst>(I);
+    v = store->getPointerOperand();
+  }
+
+  int de_mem = 0;
+  uint32_t len = 0;
+  
+  //including the case: p->p'->p''
+  it++;
+  for(; it!=end; it++){
+    switch(it->getOpcode()){
+      case llvm::Instruction::Add:{
+        auto add = dyn_cast<Instruction>(it);
+        if((add->getOperand(0) - v) == 0){
+          v = dyn_cast<Value>(add);
+          if(!len)
+            len = getPreAddArgs(add->getOperand(1));
+        }else if((add->getOperand(1) - v) == 0){
+          v = dyn_cast<Value>(add);
+          if(!len)
+            len = getPreAddArgs(add->getOperand(0));
+        }
+        break;
+      }
+      case llvm::Instruction::Call:
+        break;
+      case llvm::Instruction::Load:{
+        auto load = dyn_cast<llvm::LoadInst>(it);
+        if((load->getPointerOperand() - v) == 0)
+            v = dyn_cast<Value>(it);
+        break;
+      }
+      case llvm::Instruction::Store:{
+        auto store = dyn_cast<llvm::StoreInst>(it);
+        if((store->getValueOperand() - v) == 0){
+            v = store->getPointerOperand();
+        }
+        break;
+      }
+      case llvm::Instruction::IntToPtr:{
+        auto inttoptrI = dyn_cast<Instruction>(it);
+        if((inttoptrI->getOperand(0) - v) == 0){
+            v = dyn_cast<Value>(inttoptrI);
+            length[de_mem] = len;
+            de_mem++;
+            len = 0;
+        }
+        break;
+      }
+      default:{
+        auto instr = dyn_cast<Instruction>(it);
+        for(Use &u : instr->operands()){
+            Value *InstV = u.get();
+            if((InstV - v) == 0){
+              v = dyn_cast<Value>(instr);
+              break;
+            }
+        }
+      }
+    }
+  }//??end for
+
+  if(length.empty()){
+    //no dereference
+    length[0] = len;
+  }else if((int)length.size()==de_mem){
+    //the length of last dereference
+    length[de_mem] = len; 
+  }
+
+  return length;
+}
+
+uint32_t JumpTargetManager::getPreAddArgs(llvm::Value *v){
+  auto I = dyn_cast<llvm::Instruction>(v);
+  BasicBlock::reverse_iterator it(I);
+  BasicBlock::reverse_iterator rend = I->getParent()->rend();
+  uint32_t length = 0;
+
+  for(; it!=rend; it++){
+    switch(it->getOpcode()){
+      case llvm::Instruction::Add:{
+        auto add = dyn_cast<Instruction>(&*it);
+        if((dyn_cast<Value>(add) - v) == 0){
+          //accroding the convention of lifting x86_asm to IR 
+          v = add->getOperand(1);
+        }
+        break;        
+      }
+      case llvm::Instruction::Load:{
+        auto load = dyn_cast<llvm::LoadInst>(&*it);
+        if((dyn_cast<Value>(load) - v) ==0)
+          v = load->getPointerOperand();
+        break;
+      }
+      case llvm::Instruction::Store:{
+        auto store = dyn_cast<llvm::StoreInst>(&*it);
+        if((store->getPointerOperand() - v) == 0){
+            v = store->getValueOperand();
+            if(dyn_cast<ConstantInt>(v)){
+              length = getLimitedValue(v);
+              return length; 
+            }
+        }
+        break;
+      }
+      case llvm::Instruction::Call:
+        break;
+      default:
+        return length;
+    }
+  } 
+  return length;
 }
 
 void JumpTargetManager::TestSuspectDataRegion(std::string path){ 
@@ -2208,12 +2350,14 @@ void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
   revng_assert(start);
   SuspectDataRegion[start] = end-start;
   uint64_t addr = 0;
+  auto tmp = *ptc.exception_syscall;
   for(addr=start; addr<end; addr++){
     ptc.exec(addr);
     if((addr + *ptc.BlockSize) == end)
       StaticAddrs[addr] = false;
 
   }
+  *ptc.exception_syscall = tmp;
 }
 
 //If there is Reg-Mem use-def, return false:turn off EntryFlag mode  
@@ -2256,6 +2400,12 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
         }
     }
   }
+  BlockMap::iterator TargetIt = JumpTargets.find(thisAddr);
+  if (TargetIt != JumpTargets.end()) {
+    if(TargetIt->second.getSize()<2)
+      return true; 
+  }
+
   if(thisAddr > start)
     handleSuspectDataRegion(start, thisAddr);
     
