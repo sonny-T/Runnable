@@ -1136,7 +1136,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
        *    2 means:      callnext addr needs 
        *                  to record the first three addrs. */
       EntryFlag = JumpTargets.handleStaticAddr();
-      JumpTargets.handleEmbeddedDataAddr(getEmbeddedData());
       //StaticAddrFlag: means that entering check point mode 
       StaticAddrFlag = true; 
       std::tie(VirtualAddress, Entry) = JumpTargets.peek();
@@ -1145,7 +1144,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     }
 
   } // End translations loop
-
+  JumpTargets.handleEmbeddedDataAddr(getEmbeddedData());
   embeddedData();
   JumpTargets.TestSuspectDataRegion(getPath());  
 
@@ -1312,6 +1311,7 @@ void CodeGenerator::embeddedData(){
   EmbeddedData[Binary.rodataStartAddr] = Binary.ehframeEndAddr - Binary.rodataStartAddr;
   EmbeddedData[CodeStartAddress] = Binary.entryPoint() - CodeStartAddress;
 
+  //eliminate duplication region
   auto iter = EmbeddedData.begin();
   std::pair<uint64_t, size_t> pre(iter->first,iter->second);
   iter++;

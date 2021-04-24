@@ -249,6 +249,8 @@ public:
   void TestSuspectDataRegion(std::string path);
   StaticAddrsMap SuspectDataRegion;
   void handleSuspectDataRegion(uint64_t start, uint64_t end);
+  void handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData);
+
   void harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path);
   int64_t GetConst(llvm::Instruction *I, llvm::Value *v, std::string path);
   void registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, 
@@ -285,8 +287,6 @@ public:
 
   bool isCodeSection(uint64_t PC);
   std::pair<bool, uint32_t> isAccessCodeAddr(llvm::Value *v, uint64_t illaddr);
-  std::map<uint64_t, bool> IllAccessAddr;
-  void handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData);
   bool handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::string path);
   bool haveDef(llvm::Instruction *I, llvm::Value *v);
 

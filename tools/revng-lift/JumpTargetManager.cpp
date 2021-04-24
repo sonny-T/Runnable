@@ -2244,15 +2244,16 @@ void JumpTargetManager::handleBaseDataGadget(llvm::BasicBlock *thisBlock,std::ma
             for(;iter!=length.end();iter++){
               auto cur = iter->first;
               base = *((uint64_t *)(base+EmbeddedDataAddrs[cur-1]));
-              if(isExecutableAddress(base)){
-                auto Target = EmbeddedDataAddrs.find(base);
-                if(Target == EmbeddedDataAddrs.end()){
+              if(!isExecutableAddress(base))
+                  break;
+              auto Target = EmbeddedDataAddrs.find(base);
+              if(Target == EmbeddedDataAddrs.end()){
                   EmbeddedDataAddrs[base] = iter->second;
-                }else{
+              }else{
                   if(iter->second > EmbeddedDataAddrs[base])
-                    EmbeddedDataAddrs[base] = iter->second;
-                }
+                      EmbeddedDataAddrs[base] = iter->second;
               }
+              
             }
             getBaseDatafromRegs(&*it);
 
@@ -2309,15 +2310,16 @@ void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){
             for(;iter!=length.end();iter++){
               auto cur = iter->first;
               base = *((uint64_t *)(base+EmbeddedDataAddrs[cur-1]));
-              if(isExecutableAddress(base)){
-                auto TargetIt = EmbeddedDataAddrs.find(base);
-                if(TargetIt == EmbeddedDataAddrs.end()){
+              if(!isExecutableAddress(base))
+                  break;
+              auto TargetIt = EmbeddedDataAddrs.find(base);
+              if(TargetIt == EmbeddedDataAddrs.end()){
                   EmbeddedDataAddrs[base] = iter->second;
-                }else{
+              }else{
                   if(iter->second>EmbeddedDataAddrs[base])
-                    EmbeddedDataAddrs[base] = iter->second;
-                }
+                      EmbeddedDataAddrs[base] = iter->second;
               }
+              
             }
           }
         }
@@ -2448,6 +2450,38 @@ uint32_t JumpTargetManager::getPreAddArgs(llvm::Value *v){
     }
   } 
   return length;
+}
+
+void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData){
+  for(auto &base : EmbeddedDataAddrs){
+      StaticAddrsMap::iterator TargetIt = SuspectDataRegion.find(base.first);
+      if(TargetIt == SuspectDataRegion.end()){
+        StaticAddrsMap::iterator upper = SuspectDataRegion.upper_bound(base.first);
+        if(upper != SuspectDataRegion.end()){
+          StaticAddrsMap::iterator lower = --upper;
+          for( ; lower!=SuspectDataRegion.begin() ;lower--){
+            if((base.first - lower->first) < lower->second){
+              TargetIt = lower; 
+              break; 
+            }
+          }
+        }
+      }
+      if(TargetIt == SuspectDataRegion.end())
+        continue;
+      
+      if(base.second == 0){
+        EmbeddedData[TargetIt->first] = (size_t)TargetIt->second;    
+      }else{
+        auto region = TargetIt->first + TargetIt->second;
+        auto end = base.first + base.second + 0x8;
+        while(end < region){
+          end = end + base.second + 0x8;
+        }
+        end = end - base.second - 0x8;
+        EmbeddedData[base.first] = end - base.first;
+      }
+  }
 }
 
 void JumpTargetManager::TestSuspectDataRegion(std::string path){ 
@@ -2662,39 +2696,6 @@ void JumpTargetManager::StaticToUnexplore(void){
       CallNextToStaticAddr(PC.first); 
   } 
   StaticAddrs.clear();
-}
-
-void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t,size_t> &EmbeddedData){
-  for(auto& data : IllAccessAddr){
-      BlockMap::iterator TargetIt = JumpTargets.find(data.first);
-      if(TargetIt == JumpTargets.end()){
-        BlockMap::iterator upper = JumpTargets.upper_bound(data.first);
-        if(upper != JumpTargets.end()){
-          auto prev = upper;
-          BlockMap::iterator lower;
-          for(lower = --prev; ;prev--){
-            revng_assert(prev != JumpTargets.begin());
-            if(lower->first < data.first){
-              lower = prev; 
-              break; 
-            }
-          }
-          uint32_t TARGET_PAGE_SIZE = 1<<12;
-          if((data.first - lower->first) >= lower->second.getSize() and 
-	     (data.first-lower->first - lower->second.getSize()) < TARGET_PAGE_SIZE and
-             (upper->first - data.first) < TARGET_PAGE_SIZE ){
-            size_t length = upper->first - lower->first - lower->second.getSize();
-            uint64_t startaddr = lower->first + lower->second.getSize();  
-            EmbeddedData[startaddr] = length;
-            errs()<<format_hex(data.first,0)<<"   :embedded addr\n";
-            errs()<<format_hex(data.first,0)<<"   length: "<<length<<"\n";
-          }        
-        }
-        //else
-          //revng_abort("Special example!\n");
-      }
-  }
-  IllAccessAddr.clear();
 }
 
 void JumpTargetManager::CallNextToStaticAddr(uint32_t PC){
