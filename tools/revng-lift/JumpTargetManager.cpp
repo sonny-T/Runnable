@@ -2151,6 +2151,118 @@ void JumpTargetManager::harvestBlockPCs(std::vector<uint64_t> &BlockPCs,llvm::Ba
   }
 }
 
+void JumpTargetManager::haveBaseDatainRegs(std::map<uint32_t, uint64_t> &BaseData){
+  for(int i=0; i<16; i++){
+    if(isExecutableAddress(ptc.regs[i])){
+      auto TargetIt = EmbeddedDataAddrs.find(ptc.regs[i]);
+      if(TargetIt == EmbeddedDataAddrs.end())
+        EmbeddedDataAddrs[ptc.regs[i]] = 0;
+
+      BaseData[i] = ptc.regs[i];
+    }
+  } 
+} 
+
+void JumpTargetManager::getBaseDatafromRegs(llvm::Instruction *I){
+  BasicBlock::iterator it(I);
+  BasicBlock::iterator end = I->getParent()->end();
+  BasicBlock::iterator lastInst(I->getParent()->back());
+ 
+  auto v = dyn_cast<llvm::Value>(I);
+  if(I->getOpcode()==Instruction::Store){
+    auto store = dyn_cast<llvm::StoreInst>(I);
+    v = store->getPointerOperand();
+  }
+ 
+  it++;
+  for(; it!=end; it++){ 
+    switch(it->getOpcode()){
+      case llvm::Instruction::Call:
+        break;
+      case llvm::Instruction::Load:{
+        auto load = dyn_cast<llvm::LoadInst>(it);
+        if((load->getPointerOperand() - v) == 0)
+            v = dyn_cast<Value>(it);
+        break;
+      }
+      case llvm::Instruction::Store:{
+        auto store = dyn_cast<llvm::StoreInst>(it);
+        if((store->getValueOperand() - v) == 0){
+            v = store->getPointerOperand(); 
+            if(dyn_cast<Constant>(v)){
+              StringRef name = v->getName();
+              auto number = StrToInt(name.data());
+              auto op = REGLABLE(number);
+              if(op==UndefineOP)
+                continue;
+              if(isExecutableAddress(ptc.regs[op])){
+                std::map<uint64_t,uint32_t>::iterator Target = EmbeddedDataAddrs.find(ptc.regs[op]); 
+                if(Target == EmbeddedDataAddrs.end())
+                  EmbeddedDataAddrs[ptc.regs[op]] = 0;
+                return;
+              }
+            }
+        }
+        break;
+      }
+      default:{
+        auto instr = dyn_cast<Instruction>(it);
+        for(Use &u : instr->operands()){
+            Value *InstV = u.get();
+            if((InstV - v) == 0){
+              v = dyn_cast<Value>(instr);
+              break; 
+            }
+        }
+      }  
+    }
+  }//??end for
+}
+
+void JumpTargetManager::handleBaseDataGadget(llvm::BasicBlock *thisBlock,std::map<uint32_t, uint64_t> &BaseData){
+  BasicBlock::iterator it(thisBlock->begin());
+  BasicBlock::iterator end(thisBlock->end());
+     
+  for(;it!=end;it++){
+    if(it->getOpcode()==Instruction::Load){
+      auto load = dyn_cast<llvm::LoadInst>(it);
+      auto v = load->getPointerOperand();
+      if(dyn_cast<Constant>(v)){
+        StringRef name = v->getName();
+        auto number = StrToInt(name.data());
+        auto reg = REGLABLE(number); 
+        if(reg==UndefineOP)
+          continue;
+        auto TargetIt = BaseData.find(reg);
+        if(TargetIt!=BaseData.end()){
+            std::map<int,uint32_t> length = getBinaryOperationInfo(&*it);
+            if(length[0] > EmbeddedDataAddrs[TargetIt->second])
+                EmbeddedDataAddrs[TargetIt->second] = length[0];
+            auto iter = length.begin();
+            auto base = TargetIt->second;
+            iter++;
+            for(;iter!=length.end();iter++){
+              auto cur = iter->first;
+              base = *((uint64_t *)(base+EmbeddedDataAddrs[cur-1]));
+              if(isExecutableAddress(base)){
+                auto Target = EmbeddedDataAddrs.find(base);
+                if(Target == EmbeddedDataAddrs.end()){
+                  EmbeddedDataAddrs[base] = iter->second;
+                }else{
+                  if(iter->second > EmbeddedDataAddrs[base])
+                    EmbeddedDataAddrs[base] = iter->second;
+                }
+              }
+            }
+            getBaseDatafromRegs(&*it);
+
+        }//?end f(TargetIt!=...
+      }
+    }
+  }//?end for? 
+}
+
+
 void JumpTargetManager::harvestStaticAddr(llvm::BasicBlock *thisBlock){
   if(thisBlock==nullptr)
     return;

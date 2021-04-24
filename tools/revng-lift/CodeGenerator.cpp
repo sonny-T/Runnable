@@ -807,6 +807,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   uint64_t SuspectEntryAddr = 0;
   std::vector<uint64_t> BlockPCs1;
   std::vector<uint64_t> &BlockPCs = BlockPCs1;
+  std::map<uint32_t, uint64_t> BaseData1;
+  std::map<uint32_t, uint64_t> &BaseData = BaseData1;
   while (Entry != nullptr) {
     jjj++;
     BlockBRs = nullptr;
@@ -833,6 +835,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     } 
 
     if(!JumpTargets.haveBB){
+    JumpTargets.haveBaseDatainRegs(BaseData);    
+
     SmallSet<unsigned, 1> ToIgnore;
     ToIgnore = Translator.preprocess(InstructionList.get());
 
@@ -995,7 +999,10 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       else
         JumpTargets.harvestBlockPCs(BlockPCs, BlockBRs); 
     }
-      
+    if(!BaseData.empty()){ 
+      JumpTargets.handleBaseDataGadget(BlockBRs,BaseData);
+      BaseData.clear();
+    } 
     }////?end if(!JumpTargets.haveBB)
 
     // Obtain a new program counter to translate
@@ -1085,6 +1092,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       JumpTargets.BranchTargets.erase(JumpTargets.BranchTargets.begin());
       ptc.deletCPULINEState();
       DynamicVirtualAddress = jtVirtualAddress;
+      BaseData.clear();
     }
 
     if(DynamicVirtualAddress){
@@ -1094,6 +1102,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
         // If have translated BB, give Entry an arbitrary value
         Entry = tmpBB;
         VirtualAddress = DynamicVirtualAddress;
+        BaseData.clear();
       }
       else{
         std::tie(VirtualAddress, Entry) = JumpTargets.peek();
@@ -1117,6 +1126,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       DynamicVirtualAddress = 0;
 
     }////?end if(traverseFLAG)
+    if(!JumpTargets.haveBB)
+      JumpTargets.haveBaseDatainRegs(BaseData);
     
     if(Entry==nullptr){
       /*EntryFlag:

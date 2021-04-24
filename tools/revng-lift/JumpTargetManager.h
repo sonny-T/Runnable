@@ -234,6 +234,9 @@ public:
   StaticAddrsMap EmbeddedDataAddrs;
   std::map<int, uint32_t> getBinaryOperationInfo(llvm::Instruction *I);  
   uint32_t getPreAddArgs(llvm::Value *v);  
+  void haveBaseDatainRegs(std::map<uint32_t, uint64_t> &BaseData);
+  void handleBaseDataGadget(llvm::BasicBlock *thisBlock,std::map<uint32_t, uint64_t> &BaseData);
+  void getBaseDatafromRegs(llvm::Instruction *I);
 
   uint32_t handleStaticAddr(void);
   void harvestBlockPCs(std::vector<uint64_t> &BlockPCs,llvm::BasicBlock *thisBlock);
