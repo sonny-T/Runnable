@@ -2400,15 +2400,15 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
         }
     }
   }
-  BlockMap::iterator TargetIt = JumpTargets.find(thisAddr);
-  if (TargetIt != JumpTargets.end()) {
-    if(TargetIt->second.getSize()<2)
-      return true; 
-  }
+  if(thisAddr > start){
+    BlockMap::iterator TargetIt = JumpTargets.find(thisAddr);
+    if (TargetIt != JumpTargets.end()) {
+      if(TargetIt->second.getSize()<2)
+        return true; 
+    }
 
-  if(thisAddr > start)
     handleSuspectDataRegion(start, thisAddr);
-    
+  }
   return false;  
 }
 
