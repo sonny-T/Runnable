@@ -2471,6 +2471,7 @@ void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t, size_t> &Embed
         continue;
       
       if(base.second == 0){
+        errs()<<format_hex(base.first,0)<<" "<<base.second<<"\n";
         EmbeddedData[TargetIt->first] = (size_t)TargetIt->second;    
       }else{
         auto region = TargetIt->first + TargetIt->second;
@@ -2479,6 +2480,7 @@ void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t, size_t> &Embed
           end = end + base.second + 0x8;
         }
         end = end - base.second - 0x8;
+        errs()<<format_hex(base.first,0)<<" "<<base.second<<"\n";
         EmbeddedData[base.first] = end - base.first;
       }
   }
@@ -2723,8 +2725,10 @@ void JumpTargetManager::CallNextToStaticAddr(uint32_t PC){
 
 void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, int64_t base, 
                                           int64_t offset, std::string path){
-  if(isExecutableAddress((uint64_t)base))
+  if(isExecutableAddress((uint64_t)base)){
+    EmbeddedDataAddrs[(uint64_t)base] = offset;
     return;
+  }
   if(!isELFDataSegmAddr((uint64_t)base))
     return;
 
