@@ -2475,7 +2475,7 @@ void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t, size_t> &Embed
         EmbeddedData[TargetIt->first] = (size_t)TargetIt->second;    
       }else{
         auto region = TargetIt->first + TargetIt->second;
-        auto end = base.first + base.second + 0x8;
+        auto end = base.first + base.second + 0x8 + 0x1;
         while(end < region){
           end = end + base.second + 0x8;
         }
