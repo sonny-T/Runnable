@@ -468,6 +468,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
   haveBB = 0;
   range = 0;
+  outputpath = "";
 }
 
 static bool isBetterThan(const Label *NewCandidate, const Label *OldCandidate) {
@@ -2632,6 +2633,12 @@ void JumpTargetManager::harvestNextAddrofBr(){
   }
 }
 
+void JumpTargetManager::InitialOutput(std::string OutputPath){
+
+  outputpath = OutputPath;
+
+}
+
 void JumpTargetManager::StatisticsLog(std::string path){
   if(!Statistics)
       return;
@@ -2723,69 +2730,168 @@ void JumpTargetManager::CallNextToStaticAddr(uint32_t PC){
   }
 }
 
-void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, int64_t base, 
-                                          int64_t offset, std::string path){
-  if(isExecutableAddress((uint64_t)base)){
-    EmbeddedDataAddrs[(uint64_t)base] = offset;
-    return;
+uint64_t JumpTargetManager::getStaticAddrfromDestRegs(llvm::Instruction *I, uint64_t bound){
+  BasicBlock::iterator it(I);
+  BasicBlock::iterator end = I->getParent()->end();
+  BasicBlock::iterator lastInst(I->getParent()->back());
+
+  auto v = dyn_cast<llvm::Value>(I);
+  if(I->getOpcode()==Instruction::Store){
+    auto store = dyn_cast<llvm::StoreInst>(I);
+    v = store->getPointerOperand();
   }
-  if(!isELFDataSegmAddr((uint64_t)base))
-    return;
-
-  //JumpTableBase[base] = offset;
-  for(uint64_t n = 0;;n++){
-    uint64_t addr = (uint64_t)(base + (n << offset));
-    uint64_t niube = addr;
-    while(isELFDataSegmAddr(addr)){
-      auto pre = addr;
-      addr = *((uint64_t *)addr);
-      if(pre==addr or addr==niube)
-          break;
+  bool flag = false;
+  it++;
+  for(; it!=end; it++){
+    switch(it->getOpcode()){
+      case llvm::Instruction::Call:
+        break;
+      case llvm::Instruction::Load:{
+        auto load = dyn_cast<llvm::LoadInst>(it);
+        if((load->getPointerOperand() - v) == 0)
+            v = dyn_cast<Value>(it);
+        break;
+      }
+      case llvm::Instruction::Store:{
+        auto store = dyn_cast<llvm::StoreInst>(it);
+        if((store->getValueOperand() - v) == 0){
+            v = store->getPointerOperand();
+            if(dyn_cast<Constant>(v)){
+              StringRef name = v->getName();
+              auto number = StrToInt(name.data());
+              auto op = REGLABLE(number);
+              if(op==UndefineOP)
+                  continue;
+              if(isExecutableAddress(ptc.regs[op]))
+                  return ptc.regs[op];
+              if(ptc.regs[op] == 0)
+                  flag = true;
+            }
+        }
+        break;
+      }
+      default:{
+        auto instr = dyn_cast<Instruction>(it);
+        for(Use &u : instr->operands()){
+            Value *InstV = u.get();
+            if((InstV - v) == 0){
+              v = dyn_cast<Value>(instr);
+              break;
+            }
+        }
+      }
     }
+  }//??end for
+  if(flag)
+    return 0;
 
-    if(addr==0)
-        continue;
-    if(isExecutableAddress(addr)){
-
-        auto JTPath = path + ".JumpTable.log";
-        std::ofstream JTAddr;
-        JTAddr.open(JTPath,std::ofstream::out | std::ofstream::app);
-        JTAddr <<"---------> "<< std::hex << addr <<"\n";
-        JTAddr.close();
-        
-        harvestBTBasicBlock(thisBlock,thisAddr,addr);
-    }
-    else
-      break;
-  }
+  return 1;
 }
 
-void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr,std::string path){
+void JumpTargetManager::registerJumpTable(llvm::BasicBlock *thisBlock,
+                                          llvm::Instruction *shl,
+                                          llvm::Instruction *add,
+                                          uint64_t thisAddr,
+                                          int64_t base,
+                                          int64_t offset){
+  auto Path = outputpath + ".JumpTable.log";
+  std::ofstream JTAddr;
+  JTAddr.open(Path,std::ofstream::out | std::ofstream::app);
+  JTAddr <<"0x"<< std::hex << thisAddr <<"\n";
+
+  if(isExecutableAddress((uint64_t)base)){
+    JTAddr.close();
+    return;}
+  if(!isELFDataSegmAddr((uint64_t)base)){
+    JTAddr.close();
+    return;}
+
+  // Get index
+  uint32_t index = UndefineOP;
+  BasicBlock::reverse_iterator I(shl);
+  BasicBlock::reverse_iterator rend(thisBlock->rend());
+  for(; I!=rend; I++){
+    if(I->getOpcode() == Instruction::Load){
+      auto load = dyn_cast<LoadInst>(&*I);
+      auto v = load->getPointerOperand();
+      if(dyn_cast<Constant>(v)){
+        auto str = v->getName();
+        index = REGLABLE(StrToInt(str.data()));
+        if(index == UndefineOP)
+            revng_abort("Unkown register OP!\n");
+        break;
+      }
+    }
+  }
+  // Get start PC
+  auto start = getInstructionPC(shl);
+  revng_assert(start);
+
+  // Running gadgets
+  bool recover = false;
+  std::set<uint64_t> JTtargets;
+  if(ptc.is_stack_addr(ptc.regs[R_ESP])){
+    ptc.storeStack();
+    recover = true;
+  }
+  storeCPURegister();
+  for(int i=0; i<2000;i++){
+    ptc.regs[index] = i;
+    int64_t addr = ptc.exec(start);
+    auto tmp = getStaticAddrfromDestRegs(add,thisAddr);
+    if(tmp==1){
+      if(*ptc.isIndirect or *ptc.isIndirectJmp){
+        if(isExecutableAddress(addr)){
+          JTAddr <<"---------> "<< std::hex << addr <<"\n";
+          JTtargets.insert(addr);
+          continue;
+        }
+      }
+      break;
+    }else{
+      if(tmp==0)
+          continue;
+      JTAddr <<"---------> "<< std::hex << tmp <<"\n";
+      JTtargets.insert(tmp);
+    }
+  }
+  recoverCPURegister();
+  if(recover)
+    ptc.recoverStack();
+
+  if(!JTtargets.empty()){
+    std::set<uint64_t>::iterator it = JTtargets.begin();
+    for(;it!=JTtargets.end();it++)
+      harvestBTBasicBlock(thisBlock,thisAddr,*it);
+  }
+  JTAddr.close();
+}
+
+void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr){
   BasicBlock::iterator begin(thisBlock->begin());
   BasicBlock::iterator end(thisBlock->end());
-      
+
   auto I = begin;
   uint32_t isJumpTable = 0;
-  uint64_t PC = 0;
   llvm::Instruction *shl = nullptr;
+  llvm::Instruction *shlIt = nullptr;
   llvm::Instruction *add = nullptr;
   int64_t base = 0;
   int64_t offset = 0;
-    
+
   for(;I!=end;I++){
     auto op = I->getOpcode();
     if(op == Instruction::Call){
       auto call = dyn_cast<CallInst>(&*I);
       auto callee = call->getCalledFunction();
       if(callee != nullptr and callee->getName() == "newpc"){
-        PC = getLimitedValue(call->getArgOperand(0));
-        isJumpTable  = 0; 
+        isJumpTable  = 0;
         shl = nullptr;
         if(offset){
-          registerJumpTable(thisBlock,thisAddr,base,offset,path);
+          registerJumpTable(thisBlock,shlIt,add,thisAddr,base,offset);
           offset = 0;
-          base = 0; 
-        }                          
+          base = 0;
+        }
       }
     }
     if(op==Instruction::Shl){
@@ -2798,129 +2904,141 @@ void JumpTargetManager::harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64
       isJumpTable = isJumpTable + 2;
       if(isJumpTable==3 or isJumpTable==5){
         if(shl){
-          offset = GetConst(shl, shl->getOperand(1),path);
+          offset = GetConst(shl, shl->getOperand(1));
+          shlIt = shl;
           shl = nullptr;
         }
         add = dyn_cast<llvm::Instruction>(I);
-        base = base + GetConst(add, add->getOperand(1),path);
-	     
-        auto JTPath = path + ".JumpTable.log";
-        std::ofstream JTAddr;
-        JTAddr.open(JTPath,std::ofstream::out | std::ofstream::app);
-        JTAddr <<"0x"<< std::hex << PC <<"\n";
-        JTAddr.close();
+        base = base + GetConst(add, add->getOperand(1));
       }
     }
   }
 
   if(offset)
-    registerJumpTable(thisBlock,thisAddr,base,offset,path);
+    registerJumpTable(thisBlock,shlIt,add,thisAddr,base,offset);
 
 }
 
-int64_t JumpTargetManager::GetConst(llvm::Instruction *I, llvm::Value *v, std::string path){
-  auto v1 = v;
-  auto operateUser = dyn_cast<User>(I);
-  auto bb = I->getParent();
-  uint32_t NUMOFCONST = 0;
-  LastAssignmentResult result;
-  llvm::Instruction *lastInst = nullptr;
-
-  auto JTPath = path + ".JumpTable.log";
+int64_t JumpTargetManager::GetConst(llvm::Instruction *I, llvm::Value *v){
+  auto Path = outputpath + ".JumpTable.log";
   std::ofstream JTAddr;
-  JTAddr.open(JTPath,std::ofstream::out | std::ofstream::app);
+  JTAddr.open(Path,std::ofstream::out | std::ofstream::app);
 
-  bool nonConst = true;
-  while(nonConst){
-    std::tie(result,lastInst) = getLastAssignment(v1,operateUser,bb,JumpTableMode,NUMOFCONST);
-    switch(result)
-    {
-      case CurrentBlockValueDef:
-      {
-        auto load = dyn_cast<llvm::LoadInst>(lastInst);
-        if(load==nullptr){
-          return 0;
-          //revng_assert(load);
-        }
-        v1 = load->getPointerOperand();
-        if(dyn_cast<Constant>(v1)){
-          if(dyn_cast<ConstantInt>(v1)){
-            auto integer = llvm::cast<llvm::ConstantInt>(v1)->getSExtValue();
-            JTAddr << integer <<"\n";
-            JTAddr.close();
-            return integer;
-          }else{
-            auto str = v1->getName();
-            JTAddr << str.str();
-            auto lable = REGLABLE(StrToInt(str.data()));
-            if(lable == UndefineOP)
-              revng_abort("Unkown register OP!\n");
-            JTAddr << " : "<< std::hex<< ptc.regs[lable]<<"\n";
-            JTAddr.close();
-            return ptc.regs[lable];
-          }
-        }
-        else{
-          operateUser = dyn_cast<User>(lastInst);
-          break;
-        }
-      }
-      case CurrentBlockLastAssign:
-      {
-        // Only Store instruction can assign a value for Value rather than defined
-        auto store = dyn_cast<llvm::StoreInst>(lastInst);
-        v1 = store->getValueOperand();
-        if(dyn_cast<Constant>(v1)){
-          if(dyn_cast<ConstantInt>(v1)){
-            auto integer = llvm::cast<llvm::ConstantInt>(v1)->getSExtValue();
-            JTAddr << integer <<"\n";
-            JTAddr.close();
-            return integer;
-          }else{
-            auto str = v1->getName();
-            JTAddr << str.str();
-            auto lable = REGLABLE(StrToInt(str.data()));
-            if(lable == UndefineOP)
-              revng_abort("Unkown register OP!\n");
-            JTAddr << " : "<< std::hex<< ptc.regs[lable]<<"\n";
-            JTAddr.close();
-            return ptc.regs[lable];
-          }
-        }
-        else{
-          operateUser = dyn_cast<User>(lastInst);
-          break;
-        }
-      }
-      case ConstantValueAssign:
-      {
-        //This arguement v is a constant vale.
-        if(dyn_cast<ConstantInt>(v)){
-          auto integer = llvm::cast<llvm::ConstantInt>(v)->getSExtValue();
-          JTAddr << integer <<"\n";
-          JTAddr.close();
-          return integer;
-        }else{
-          auto str = v->getName();
-          JTAddr << str.str();
-          auto lable = REGLABLE(StrToInt(str.data()));
-          if(lable == UndefineOP)
-            revng_abort("Unkown register OP!\n");
-          JTAddr << " : "<< std::hex<< ptc.regs[lable]<<"\n";
-          JTAddr.close();
-          return ptc.regs[lable];
-        }
-      }
-      case NextBlockOperating:
-      case UnknowResult:
-          revng_abort("Unknow of result!");
-      break;
+  BasicBlock::reverse_iterator it(I);
+  BasicBlock::reverse_iterator rend = I->getParent()->rend();
+
+  if(dyn_cast<Constant>(v)){
+    if(dyn_cast<ConstantInt>(v)){
+      auto integer = llvm::cast<llvm::ConstantInt>(v)->getSExtValue();
+      JTAddr << integer <<"\n";
+      JTAddr.close();
+      return integer;
+    }else{
+      auto str = v->getName();
+      JTAddr << str.str();
+      auto lable = REGLABLE(StrToInt(str.data()));
+      if(lable == UndefineOP)
+        return 0;
+      JTAddr << " : "<< std::hex<< ptc.regs[lable]<<"\n";
+      JTAddr.close();
+      return ptc.regs[lable];
     }
   }
+
+
+  it++;
+  for(; it!=rend; it++){
+    switch(it->getOpcode()){
+      case llvm::Instruction::Call:{
+        auto callI = dyn_cast<CallInst>(&*it);
+        auto *Callee = callI->getCalledFunction();
+        if(Callee != nullptr && Callee->getName() == "newpc")
+          return 0;
+        break;
+      }
+      case llvm::Instruction::Load:{
+        auto load = dyn_cast<llvm::LoadInst>(&*it);
+	if((dyn_cast<Value>(load) - v) == 0){
+	    v = load->getPointerOperand();
+            if(dyn_cast<Constant>(v)){
+                if(dyn_cast<ConstantInt>(v)){
+                  auto integer = llvm::cast<llvm::ConstantInt>(v)->getSExtValue();
+                  JTAddr << integer <<"\n";
+                  JTAddr.close();
+                  return integer;
+                }else{
+                  auto str = v->getName();
+                  JTAddr << str.str();
+                  auto lable = REGLABLE(StrToInt(str.data()));
+                  JTAddr << " : "<< std::hex<< ptc.regs[lable]<<"\n";
+                  JTAddr.close();
+                  if(lable == UndefineOP)
+                    return 0;
+
+                  return ptc.regs[lable];
+                }
+            }
+        }
+        break;
+      }
+      case llvm::Instruction::Store:{
+        auto store = dyn_cast<llvm::StoreInst>(&*it);
+        if((store->getPointerOperand() - v) == 0){
+	    v = store->getValueOperand();
+            if(dyn_cast<Constant>(v)){
+                if(dyn_cast<ConstantInt>(v)){
+                  auto integer = llvm::cast<llvm::ConstantInt>(v)->getSExtValue();
+                  JTAddr << integer <<"\n";
+                  JTAddr.close();
+                  return integer;
+                }else{
+                  auto str = v->getName();
+                  JTAddr << str.str();
+                  auto lable = REGLABLE(StrToInt(str.data()));
+                  if(lable == UndefineOP)
+                    return 0;
+                  JTAddr << " : "<< std::hex<< ptc.regs[lable]<<"\n";
+                  JTAddr.close();
+                  return ptc.regs[lable];
+                }
+            }
+        }
+	break;
+      }
+      default:{
+        auto instr = dyn_cast<Instruction>(&*it);
+        if((v-dyn_cast<Value>(instr)) == 0){
+          auto num = instr->getNumOperands();
+          if(num>1)
+            return 0;
+          for(Use &u : instr->operands()){
+            Value *InstV = u.get();
+	    v = InstV;
+          }
+        }
+        break;
+      }
+    }
+  }//??end for
 
   return 0;
 }
 
+void JumpTargetManager::storeCPURegister(){
+  TempCPURegister.clear();
+  for(int i=0; i<REGS;i++) TempCPURegister.push_back(ptc.regs[i]);
+}
+void JumpTargetManager::cleanCPURegister(){
+  for(int i=0; i<REGS;i++){
+    if(i==R_ESP)
+      continue;
+    ptc.regs[i] = 0;
+  }
+}
+void JumpTargetManager::recoverCPURegister(){
+  for(size_t i=0; i<TempCPURegister.size(); i++)
+    ptc.regs[i] = TempCPURegister[i];
+}
 
 void JumpTargetManager::handleIndirectCall(llvm::BasicBlock *thisBlock, 
 		uint64_t thisAddr, bool StaticFlag){

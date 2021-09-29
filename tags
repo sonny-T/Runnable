@@ -664,7 +664,6 @@ IS_EMPTY_0001	include/revng/Support/Assert.h	172;"	d
 ITERATORWRAPPER_H	include/revng/Support/IteratorWrapper.h	2;"	d
 IdentityLoads	lib/StackAnalysis/Cache.h	/^  std::set<const llvm::LoadInst *> IdentityLoads;$/;"	m	class:StackAnalysis::Cache
 IdentityStores	lib/StackAnalysis/Cache.h	/^  std::set<const llvm::StoreInst *> IdentityStores;$/;"	m	class:StackAnalysis::Cache
-IllAccessAddr	tools/revng-lift/JumpTargetManager.h	/^  std::map<uint64_t, bool> IllAccessAddr;$/;"	m	class:JumpTargetManager
 IllegalCalls	tools/revng-lift/CPUStateAccessAnalysisPass.cpp	/^  CallPtrSet IllegalCalls;$/;"	m	struct:TaintResults	file:
 IllegalStaticAddrs	tools/revng-lift/JumpTargetManager.h	/^  std::vector<uint64_t> IllegalStaticAddrs;$/;"	m	class:JumpTargetManager
 In	tools/revng-lift/InstructionTranslator.cpp	/^enum ArgumentType { In, Out, Const };$/;"	e	enum:PTC::ArgumentType	file:
@@ -2505,7 +2504,7 @@ handleEdge	lib/StackAnalysis/FunctionABI.cpp	/^  llvm::Optional<Element<E>> hand
 handleEdge	lib/StackAnalysis/IncoherentCallsAnalysis.cpp	/^  llvm::Optional<Element> handleEdge(const Element &Original,$/;"	f	class:StackAnalysis::IncoherentCallsAnalysis::Analysis
 handleEdge	lib/StackAnalysis/Intraprocedural.h	/^  llvm::Optional<Element> handleEdge(const Element &Original,$/;"	f	class:StackAnalysis::Intraprocedural::Analysis
 handleEdge	lib/Support/ExampleAnalysis.cpp	/^  llvm::Optional<LatticeElement> handleEdge(const LatticeElement &Original,$/;"	f	class:ExampleAnalysis::Analysis
-handleEmbeddedDataAddr	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t,size_t> &EmbeddedData){$/;"	f	class:JumpTargetManager
+handleEmbeddedDataAddr	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData){$/;"	f	class:JumpTargetManager
 handleEntryBlock	tools/revng-lift/JumpTargetManager.cpp	/^bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::string path){$/;"	f	class:JumpTargetManager
 handleGenericInstruction	lib/StackAnalysis/Intraprocedural.cpp	/^  void handleGenericInstruction(Instruction *I) {$/;"	f	class:StackAnalysis::Intraprocedural::BasicBlockState
 handleIllegalJumpAddress	tools/revng-lift/JumpTargetManager.cpp	/^void JumpTargetManager::handleIllegalJumpAddress(llvm::BasicBlock *thisBlock,$/;"	f	class:JumpTargetManager

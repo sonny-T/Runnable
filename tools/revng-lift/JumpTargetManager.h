@@ -168,6 +168,8 @@ private:
 public:  
   /* Determine whether to repeat to TB.*/ 
   unsigned int haveBB;
+  std::string outputpath;
+
   void harvestbranchBasicBlock(uint64_t nextAddr,
 		     uint64_t thisAddr, 
                      llvm::BasicBlock *thisBlock, 
@@ -222,6 +224,7 @@ public:
   IndirectBlocksMap CondBranches;
   void harvestNextAddrofBr();
   void StatisticsLog(std::string path);
+  void InitialOutput(std::string OutputPath);
 
 
   llvm::BasicBlock * obtainJTBB(uint64_t PC,JTReason::Values Reason);
@@ -251,10 +254,13 @@ public:
   void handleSuspectDataRegion(uint64_t start, uint64_t end);
   void handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData);
 
-  void harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr, std::string path);
-  int64_t GetConst(llvm::Instruction *I, llvm::Value *v, std::string path);
-  void registerJumpTable(llvm::BasicBlock *thisBlock, uint64_t thisAddr, 
-                         int64_t base, int64_t offset, std::string path);
+  void harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr);
+  int64_t GetConst(llvm::Instruction *I, llvm::Value *v);
+  void registerJumpTable(llvm::BasicBlock *thisBlock, 
+                         llvm::Instruction *shl,
+                         llvm::Instruction *add, 
+                         uint64_t thisAddr, 
+                         int64_t base, int64_t offset);
 
   void handleIndirectCall(llvm::BasicBlock *thisBlock, uint64_t thisAddr, bool StaticFlag);
   uint64_t handleIllegalMemoryAccess(llvm::BasicBlock *thisBlock, uint64_t thisAddr, size_t ConsumedSize);
@@ -284,6 +290,12 @@ public:
   bool isDataSegmAddr(uint64_t PC);
   uint32_t StrToInt(const char *str);
   bool isELFDataSegmAddr(uint64_t PC);
+
+  uint64_t getStaticAddrfromDestRegs(llvm::Instruction *I, uint64_t bound);
+  std::vector<uint64_t> TempCPURegister;
+  void storeCPURegister();
+  void cleanCPURegister();
+  void recoverCPURegister();
 
   bool isCodeSection(uint64_t PC);
   std::pair<bool, uint32_t> isAccessCodeAddr(llvm::Value *v, uint64_t illaddr);

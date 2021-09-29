@@ -59,6 +59,7 @@ extern PTCInterface ptc;
 #define R_13 13
 #define R_14 14
 #define R_15 15
+#define REGS 16
 #define UndefineOP 20
 
 #endif // PTCINTERFACE_H
