@@ -248,14 +248,14 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
  for (SegmentInfo &Segment : Binary.segments()) {
     // If it's executable register it as a valid code area
-//    if (Segment.IsExecutable) {
-//      // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
-//      // useful code anyway
+    if (Segment.IsExecutable) {
+      // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
+      // useful code anyway
 //      ptc.mmap(Segment.StartVirtualAddress,
 //               static_cast<const void *>(Segment.Data.data()),
 //               static_cast<size_t>(Segment.Data.size()));
-//      CodeStartAddress = Segment.StartVirtualAddress;
-//    }
+      CodeStartAddress = Segment.StartVirtualAddress;
+    }
     
     if(!Segment.IsExecutable){
       std::string Name = Segment.generateName();
@@ -1336,39 +1336,39 @@ void CodeGenerator::embeddedData(){
   }
   
   //Prepare the linking info CSV
-//  if (LinkingInfoPath.size() == 0)
-//    LinkingInfoPath = OutputPath + ".li.csv";
-//  std::ofstream LinkingInfoStream;
-//  LinkingInfoStream.open(LinkingInfoPath,std::ofstream::out | std::ofstream::app);
-//
-//  auto *Uint8Ty = Type::getInt8Ty(Context);
-//  
-//  for(const auto &embedded : EmbeddedData){
-//    std::stringstream NameStream;
-//    NameStream <<"o_"<<"r_"<<std::hex<<embedded.first;
-//    // Get data and size
-//    auto *DataType = ArrayType::get(Uint8Ty, embedded.second);
-//    Constant *TheData = nullptr;
-//    const uint8_t* addr = (uint8_t *)embedded.first;
-//    llvm::ArrayRef<uint8_t> Data = ArrayRef<uint8_t>(addr,embedded.second);
-//    TheData = ConstantDataArray::get(Context, Data);
-//    // Create a new global variable
-//    auto Variable = new GlobalVariable(*TheModule,
-//		                          DataType,
-//					  false,
-//					  GlobalValue::ExternalLinkage,
-//					  TheData,
-//					  NameStream.str());
-//    // Force alignment to 1 and assign the variable to a specific section
-//    Variable->setAlignment(1);
-//    Variable->setSection("." + NameStream.str());
-//     
-//    // Write the linking info CSV
-//    LinkingInfoStream << "." << NameStream.str() << ",0x" << std::hex
-//                      << embedded.first << ",0x" << std::hex
-//                      << embedded.first+embedded.second << "\n";
-//  }
-//  LinkingInfoStream.close();
+  if (LinkingInfoPath.size() == 0)
+    LinkingInfoPath = OutputPath + ".li.csv";
+  std::ofstream LinkingInfoStream;
+  LinkingInfoStream.open(LinkingInfoPath,std::ofstream::out | std::ofstream::app);
+
+  auto *Uint8Ty = Type::getInt8Ty(Context);
+  
+  for(const auto &embedded : EmbeddedData){
+    std::stringstream NameStream;
+    NameStream <<"o_"<<"r_"<<std::hex<<embedded.first;
+    // Get data and size
+    auto *DataType = ArrayType::get(Uint8Ty, embedded.second);
+    Constant *TheData = nullptr;
+    const uint8_t* addr = (uint8_t *)embedded.first;
+    llvm::ArrayRef<uint8_t> Data = ArrayRef<uint8_t>(addr,embedded.second);
+    TheData = ConstantDataArray::get(Context, Data);
+    // Create a new global variable
+    auto Variable = new GlobalVariable(*TheModule,
+		                          DataType,
+					  false,
+					  GlobalValue::ExternalLinkage,
+					  TheData,
+					  NameStream.str());
+    // Force alignment to 1 and assign the variable to a specific section
+    Variable->setAlignment(1);
+    Variable->setSection("." + NameStream.str());
+     
+    // Write the linking info CSV
+    LinkingInfoStream << "." << NameStream.str() << ",0x" << std::hex
+                      << embedded.first << ",0x" << std::hex
+                      << embedded.first+embedded.second << "\n";
+  }
+  LinkingInfoStream.close();
  
 }
 
