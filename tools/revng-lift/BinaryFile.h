@@ -135,7 +135,8 @@ inline SymbolType::Values fromELF(unsigned char ELFSymbolType) {
     return SymbolType::File;
 
   default:
-    revng_abort("Unexpected symbol type");
+    return SymbolType::Unknown;   
+    //revng_abort("Unexpected symbol type");
   }
 }
 
