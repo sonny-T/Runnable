@@ -992,6 +992,9 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
     if(*ptc.isDirectJmp or *ptc.isIndirectJmp or *ptc.isIndirect or *ptc.isRet) 
       JumpTargets.harvestNextAddrofBr();
+
+    if(*ptc.isIllegal)
+      DynamicVirtualAddress = tmpVA + ConsumedSize;
   
     if(EntryFlag){
       EntryFlag = JumpTargets.handleEntryBlock(BlockBRs, tmpVA, SuspectEntryAddr, getPath());
