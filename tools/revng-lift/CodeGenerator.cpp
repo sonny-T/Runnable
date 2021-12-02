@@ -998,7 +998,6 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
   
     if(EntryFlag){
       EntryFlag = JumpTargets.handleEntryBlock(BlockBRs, tmpVA, SuspectEntryAddr, getPath());
-      DynamicVirtualAddress = 0;
       if(EntryFlag)
         DynamicVirtualAddress = tmpVA + ConsumedSize;
       else
