@@ -299,7 +299,7 @@ public:
 
   bool isCodeSection(uint64_t PC);
   std::pair<bool, uint32_t> isAccessCodeAddr(llvm::Value *v, uint64_t illaddr);
-  bool handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::string path);
+  bool handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::map<std::string, llvm::BasicBlock *> &branchlabeledBasicBlock, std::string path);
   bool haveDef(llvm::Instruction *I, llvm::Value *v);
 
   uint64_t DataSegmStartAddr;

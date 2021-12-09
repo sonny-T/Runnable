@@ -2498,7 +2498,7 @@ void JumpTargetManager::TestSuspectDataRegion(std::string path){
 void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
   if(!start)
     return;
-    
+
   SuspectDataRegion[start] = end-start;
   uint64_t addr = 0;
   auto tmp = *ptc.exception_syscall;
@@ -2514,7 +2514,7 @@ void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
 }
 
 //If there is Reg-Mem use-def, return false:turn off EntryFlag mode  
-bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::string path){
+bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::map<std::string, llvm::BasicBlock *> &branchlabeledBasicBlock, std::string path){
   BasicBlock::iterator beginInst = thisBlock->begin();
   BasicBlock::iterator endInst = thisBlock->end();
  
@@ -2535,7 +2535,16 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
           SuspectDataRegion[start] = end-start;
         return false;
     }
-    //TODO br->isConditional
+    else{
+      revng_assert(!branchlabeledBasicBlock.empty());
+      for(auto pair : branchlabeledBasicBlock){
+        auto pc = getDestBRPCWrite(pair.second);
+        if(pc){
+          if(!ptc.isdecodeblock(pc))
+            return true;
+        }   
+      } 
+    }
   }
 
   /* The destination address whether is an illegal address */
