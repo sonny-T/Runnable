@@ -2496,13 +2496,17 @@ void JumpTargetManager::TestSuspectDataRegion(std::string path){
 }
 
 void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
-  revng_assert(start);
+  if(!start)
+    return;
+    
   SuspectDataRegion[start] = end-start;
   uint64_t addr = 0;
   auto tmp = *ptc.exception_syscall;
   for(addr=start; addr<end; addr++){
-    ptc.exec(addr);
-    if((addr + *ptc.BlockSize) == end)
+    auto size = ptc.exec2(addr, end);
+    if(size==0)
+      continue;
+    if((addr + size) == end)
       StaticAddrs[addr] = false;
 
   }
@@ -2510,15 +2514,12 @@ void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
 }
 
 //If there is Reg-Mem use-def, return false:turn off EntryFlag mode  
-bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, uint64_t destAddr, std::string path){
+bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::string path){
   BasicBlock::iterator beginInst = thisBlock->begin();
   BasicBlock::iterator endInst = thisBlock->end();
  
-  /* The destination address whether is an illegal address */
-  if(!(*ptc.isIndirectJmp|*ptc.isRet|*ptc.isIndirect)){
-    if(!ptc.isdecodeblock(destAddr))
-      return true;
-  }  
+  if(*ptc.isIllegal)
+    return true;
 
   /* In translation instruction mode:
    **  br = null, means that block entry address is suspicious and needs Reg use-def analysis 
@@ -2534,7 +2535,16 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
           SuspectDataRegion[start] = end-start;
         return false;
     }
+    //TODO br->isConditional
   }
+
+  /* The destination address whether is an illegal address */
+  if(*ptc.isDirectJmp|*ptc.isDirectcall){
+    auto destAddr = *ptc.isDirectJmp ? *ptc.isDirectJmp:*ptc.isDirectcall;
+    if(!ptc.isdecodeblock(destAddr))
+      return true;
+  }  
+
 
   auto I = beginInst; 
   for(;I!=endInst;I++){
@@ -2611,7 +2621,8 @@ bool JumpTargetManager::isIllegalStaticAddr(uint64_t pc){
 }
 
 void JumpTargetManager::harvestNextAddrofBr(){
-  auto BlockNext = *ptc.isDirectJmp|*ptc.isIndirectJmp|*ptc.isRet;  
+  // *ptc.CFIAddr represents next block addr. 
+  auto BlockNext = *ptc.CFIAddr;  
   if(!haveTranslatedPC(BlockNext, 0))
       StaticAddrs[BlockNext] = true;
      
