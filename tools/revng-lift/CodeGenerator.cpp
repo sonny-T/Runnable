@@ -1009,13 +1009,14 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     } 
     }////?end if(!JumpTargets.haveBB)
 
+    if(EntryFlag and JumpTargets.haveBB){
+      JumpTargets.handleSuspectDataRegion(SuspectEntryAddr,VirtualAddress);
+      SuspectEntryAddr = 0;
+      EntryFlag = false;
+    }
+
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
-
-    if(EntryFlag and JumpTargets.haveBB){
-      JumpTargets.handleSuspectDataRegion(SuspectEntryAddr,tmpVA);
-      SuspectEntryAddr = 0;
-    }
 
     if(!EntryFlag){
       if(*ptc.isCall and BlockBRs){
@@ -1126,7 +1127,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       std::cerr<<std::hex<<VirtualAddress<<" \n";
     }
 
-    if(JumpTargets.BranchTargets.empty())
+    if(JumpTargets.BranchTargets.empty() and !EntryFlag)
       DynamicVirtualAddress = 0;
 
     }////?end if(traverseFLAG)
