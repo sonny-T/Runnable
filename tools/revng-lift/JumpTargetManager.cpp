@@ -2521,6 +2521,9 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
   if(*ptc.isIllegal)
     return true;
 
+  if(*ptc.iCount==1)
+    return true;  
+
   /* In translation instruction mode:
    **  br = null, means that block entry address is suspicious and needs Reg use-def analysis 
    **  br, means: 1. non-entry address instruction appears in two blocks, no need to handle
