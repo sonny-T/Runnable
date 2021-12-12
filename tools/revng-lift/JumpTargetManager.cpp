@@ -64,7 +64,9 @@ cl::opt<bool> SUPERFAST("super-fast",
 cl::opt<bool> INFO("info",
                        cl::desc("print statistics information"),
                        cl::cat(MainCategory));
-
+cl::opt<bool> SupportLib("supportlib",
+                       cl::desc("support rewriting libary"),
+                       cl::cat(MainCategory));
 
 
 
@@ -458,7 +460,9 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
     ro_EndAddr = Binary.ehframeEndAddr;
     revng_assert(ro_StartAddr<=ro_EndAddr);
   }
-    
+ 
+  if(SupportLib)
+    CodeSegmStartAddr = Binary.entryPoint();  
 
   // Configure GlobalValueNumbering
   StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
