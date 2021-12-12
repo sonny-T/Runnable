@@ -1000,7 +1000,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       EntryFlag = JumpTargets.handleEntryBlock(BlockBRs, tmpVA, SuspectEntryAddr, Translator.branchcontent(), getPath());
       if(EntryFlag){
         DynamicVirtualAddress = tmpVA + ConsumedSize;
-        if(*ptc.iCount==1){
+        if(EntryFlag==3){
           auto size = JumpTargets.getBadBlockSize(DynamicVirtualAddress);
           DynamicVirtualAddress += size;
         }   

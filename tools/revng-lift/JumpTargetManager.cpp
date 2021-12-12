@@ -2551,18 +2551,22 @@ void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
 }
 
 //If there is Reg-Mem use-def, return false:turn off EntryFlag mode  
-bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::map<std::string, llvm::BasicBlock *> &branchlabeledBasicBlock, std::string path){
+uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::map<std::string, llvm::BasicBlock *> &branchlabeledBasicBlock, std::string path){
   BasicBlock::iterator beginInst = thisBlock->begin();
   BasicBlock::iterator endInst = thisBlock->end();
  
-  if(*ptc.isIllegal)
-    return true;
+  if(*ptc.isIllegal){
+    if(*ptc.isDirectJmp or *ptc.isIndirectJmp or *ptc.isCall or *ptc.isRet)
+      return true;
+    else 
+      return 3;  
+  }
 
   if(*ptc.iCount==1)
-    return true;  
+    return 3;  
 
   if(isRaiseException(thisBlock))
-    return true;
+    return 3;
 
   /* In translation instruction mode:
    **  br = null, means that block entry address is suspicious and needs Reg use-def analysis 
