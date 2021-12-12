@@ -1001,7 +1001,7 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
       if(EntryFlag){
         DynamicVirtualAddress = tmpVA + ConsumedSize;
         if(*ptc.iCount==1){
-          auto size = ptc.getBadBlockSize(DynamicVirtualAddress);
+          auto size = JumpTargets.getBadBlockSize(DynamicVirtualAddress);
           DynamicVirtualAddress += size;
         }   
       }

@@ -2514,6 +2514,24 @@ bool JumpTargetManager::isRaiseException(llvm::BasicBlock *thisBlock){
   return false;
 }
 
+size_t JumpTargetManager::getBadBlockSize(uint64_t start){
+  int stop = 0;
+  size_t sum = 0;
+  int count = 0;
+
+  for(;;){
+    count++;
+    auto size = ptc.getBadBlockSize(start,&stop);
+    sum =+ size;
+    start += size;
+    if(stop)
+      break;
+    revng_assert(count<500);
+  }
+  return sum;
+}
+
+
 void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
   if(!start)
     return;
