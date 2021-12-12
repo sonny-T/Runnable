@@ -472,6 +472,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
   haveBB = 0;
   range = 0;
+  badNum = 0;
   outputpath = "";
 }
 
@@ -2554,7 +2555,8 @@ void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
 uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::map<std::string, llvm::BasicBlock *> &branchlabeledBasicBlock, std::string path){
   BasicBlock::iterator beginInst = thisBlock->begin();
   BasicBlock::iterator endInst = thisBlock->end();
- 
+  badNum++; 
+
   if(*ptc.isIllegal){
     if(*ptc.isDirectJmp or *ptc.isIndirectJmp or *ptc.isCall or *ptc.isRet)
       return true;
@@ -2580,6 +2582,7 @@ uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64
         auto end = getInstructionPC(dyn_cast<Instruction>(br));
         if(end>start)
           SuspectDataRegion[start] = end-start;
+        badNum = 0;  
         return false;
     }
     else{
@@ -2601,7 +2604,7 @@ uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64
       return true;
   }  
 
-
+  bool haveAccess = false;
   auto I = beginInst; 
   for(;I!=endInst;I++){
     if(I->getOpcode() == Instruction::Load){
@@ -2610,6 +2613,7 @@ uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64
         if(dyn_cast<Constant>(v)){
           llvm::Instruction *current = dyn_cast<llvm::Instruction>(I);
           if(isAccessMemInst(current)){
+            haveAccess = true;
             if(!haveDef(current, v)){
 	      std::string illPath = path + ".illegalEntry.log";
               std::ofstream EntryAddr;  
@@ -2621,6 +2625,9 @@ uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64
         }
     }
   }
+  if(!haveAccess and badNum>3)
+    return true;
+
   if(thisAddr > start){
     BlockMap::iterator TargetIt = JumpTargets.find(thisAddr);
     if (TargetIt != JumpTargets.end()) {
@@ -2630,6 +2637,7 @@ uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64
 
     handleSuspectDataRegion(start, thisAddr);
   }
+  badNum = 0;
   return false;  
 }
 

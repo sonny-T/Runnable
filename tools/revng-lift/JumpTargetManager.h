@@ -309,6 +309,7 @@ public:
   uint64_t CodeSegmStartAddr;
   uint64_t ro_StartAddr;
   uint64_t ro_EndAddr;
+  int badNum;
 
   /* Judging whether the Block is User define Block area*/
   uint32_t belongToUBlock(llvm::BasicBlock *block);
