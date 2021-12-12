@@ -2510,6 +2510,8 @@ bool JumpTargetManager::isRaiseException(llvm::BasicBlock *thisBlock){
 	      auto *Callee = callI->getCalledFunction();
 	      if(Callee != nullptr && Callee->getName() == "helper_raise_exception")
           return true;
+        if(Callee != nullptr && Callee->getName() == "helper_load_seg")
+          return true;
     }
   }
   return false;
