@@ -253,6 +253,7 @@ public:
   StaticAddrsMap SuspectDataRegion;
   void handleSuspectDataRegion(uint64_t start, uint64_t end);
   void handleEmbeddedDataAddr(std::map<uint64_t, size_t> &EmbeddedData);
+  bool isRaiseException(llvm::BasicBlock *thisBlock);
 
   void harvestJumpTableAddr(llvm::BasicBlock *thisBlock, uint64_t thisAddr);
   int64_t GetConst(llvm::Instruction *I, llvm::Value *v);

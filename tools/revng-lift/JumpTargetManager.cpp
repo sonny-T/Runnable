@@ -2499,6 +2499,21 @@ void JumpTargetManager::TestSuspectDataRegion(std::string path){
     EntryAddr << std::hex << p.first <<", "<< p.first+p.second<< "\n";
 }
 
+bool JumpTargetManager::isRaiseException(llvm::BasicBlock *thisBlock){
+  BasicBlock::reverse_iterator I(thisBlock->rbegin());
+  BasicBlock::reverse_iterator rend = thisBlock->rend();
+  
+  for(;I!=rend;I++){
+    if(I->getOpcode()==llvm::Instruction::Call){
+      	auto callI = dyn_cast<CallInst>(&*I);
+	      auto *Callee = callI->getCalledFunction();
+	      if(Callee != nullptr && Callee->getName() == "helper_raise_exception")
+          return true;
+    }
+  }
+  return false;
+}
+
 void JumpTargetManager::handleSuspectDataRegion(uint64_t start, uint64_t end){
   if(!start)
     return;
@@ -2527,6 +2542,9 @@ bool JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t t
 
   if(*ptc.iCount==1)
     return true;  
+
+  if(isRaiseException(thisBlock))
+    return true;
 
   /* In translation instruction mode:
    **  br = null, means that block entry address is suspicious and needs Reg use-def analysis 
