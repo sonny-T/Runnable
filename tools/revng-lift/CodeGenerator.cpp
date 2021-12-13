@@ -1352,6 +1352,11 @@ void CodeGenerator::embeddedData(){
   auto *Uint8Ty = Type::getInt8Ty(Context);
   
   for(const auto &embedded : EmbeddedData){
+
+    if((embedded.first > CodeStartAddress) and (embedded.first < Binary.rodataStartAddr)){
+      if(embedded.second>256*1024*1024)
+        continue;    
+    }
     std::stringstream NameStream;
     NameStream <<"o_"<<"r_"<<std::hex<<embedded.first;
     // Get data and size

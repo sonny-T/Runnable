@@ -2676,7 +2676,7 @@ void JumpTargetManager::handleEmbeddedDataAddr(std::map<uint64_t, size_t> &Embed
       if(TargetIt == SuspectDataRegion.end())
         continue;
       
-      if(base.second == 0){
+      if((base.second == 0) or (base.second > 1024)){
         errs()<<format_hex(base.first,0)<<" "<<base.second<<"\n";
         EmbeddedData[TargetIt->first] = (size_t)TargetIt->second;    
       }else{
