@@ -1024,19 +1024,19 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
     // Obtain a new program counter to translate
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
-    if(!EntryFlag){
-      if(*ptc.isCall and BlockBRs){
-        if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP])){
-          ptc.regs[R_ESP] = *ptc.ElfStartStack - 512; 
-        }
-        //if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP]))
-        //  ptc.regs[R_ESP] = ptc.regs[R_EBP];
-        errs()<<*((unsigned long *)ptc.regs[4])<<"<--store callnext\n";
-        errs()<<*ptc.CallNext<<"\n";
-        JumpTargets.harvestCallBasicBlock(BlockBRs,tmpVA);
-        *ptc.isCall = 0;
+    if(*ptc.isCall and BlockBRs){
+      if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP])){
+        ptc.regs[R_ESP] = *ptc.ElfStartStack - 512; 
       }
-  
+      //if(!JumpTargets.isDataSegmAddr(ptc.regs[R_ESP]))
+      //  ptc.regs[R_ESP] = ptc.regs[R_EBP];
+      errs()<<*((unsigned long *)ptc.regs[4])<<"<--store callnext\n";
+      errs()<<*ptc.CallNext<<"\n";
+      JumpTargets.harvestCallBasicBlock(BlockBRs,tmpVA);
+      *ptc.isCall = 0;
+    }
+
+    if(!EntryFlag){
       if(*ptc.exception_syscall == 0x100){
         if(ExeInit){
           if(ptc.regs[R_EAX]==20){
