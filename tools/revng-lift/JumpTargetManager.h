@@ -286,6 +286,11 @@ public:
                                          llvm::BasicBlock *currentBB,
 					 TrackbackMode TrackType,
 					 uint32_t &NUMOFCONST);
+  LastAssignmentResultWithInst getLastAssignment1(llvm::Value *v, 
+                                         llvm::User *userInst,
+                                         llvm::BasicBlock *currentBB,
+					 TrackbackMode TrackType,
+					 uint32_t &NUMOFCONST);
   bool isAccessMemInst(llvm::Instruction *I);
   uint64_t getInstructionPC(llvm::Instruction *I);
   std::pair<bool, uint32_t> islegalAddr(llvm::Value *v);
@@ -303,6 +308,7 @@ public:
   std::pair<bool, uint32_t> isAccessCodeAddr(llvm::Value *v, uint64_t illaddr);
   uint32_t handleEntryBlock(llvm::BasicBlock *thisBlock, uint64_t thisAddr, uint64_t start, std::map<std::string, llvm::BasicBlock *> &branchlabeledBasicBlock, std::string path);
   bool haveDef(llvm::Instruction *I, llvm::Value *v);
+  bool haveDef1(llvm::Instruction *I, llvm::Value *v);
 
   uint64_t DataSegmStartAddr;
   uint64_t DataSegmEndAddr;

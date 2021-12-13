@@ -2137,6 +2137,206 @@ JumpTargetManager:: getLastAssignment(llvm::Value *v,
   return std::make_pair(UnknowResult,nullptr);   
 }
 
+JumpTargetManager::LastAssignmentResultWithInst 
+JumpTargetManager:: getLastAssignment1(llvm::Value *v, 
+                                      llvm::User *userInst, 
+                                      llvm::BasicBlock *currentBB,
+				      TrackbackMode TrackType,
+				      uint32_t &NUMOFCONST){
+  if(dyn_cast<ConstantInt>(v)){
+    return std::make_pair(ConstantValueAssign,nullptr);
+  }
+  switch(TrackType){
+    case FullMode:
+    case CrashMode:{
+        if(v->getName().equals("rsp"))
+          return std::make_pair(ConstantValueAssign,nullptr);       
+    }break;
+    case InterprocessMode:{
+        if(v->getName().equals("rsp")){    
+	  NUMOFCONST--;
+	  if(NUMOFCONST==0)
+	    return std::make_pair(ConstantValueAssign,nullptr);
+	}
+
+    }break;
+    case TestMode:{
+        if(v->getName().equals("rsp")){    
+	  NUMOFCONST--;
+	  if(NUMOFCONST==0)
+	    return std::make_pair(ConstantValueAssign,nullptr);
+	}
+    }
+    case JumpTableMode:{
+        auto op = StrToInt(v->getName().data());
+        switch(op){ 
+	  case RAX:
+	  case RBX:
+	  case RCX:
+	  case RDX:
+	  case RSI:
+	  case RDI:
+          case RSP:
+          case RBP:
+	  case R8:
+	  case R9:
+	  case R10:
+	  case R11:
+	  case R12:
+	  case R13:
+	  case R14:
+          case R15:
+	  {
+	    if(NUMOFCONST==0) 
+	        return std::make_pair(ConstantValueAssign,nullptr);
+            NUMOFCONST--;
+	  }break;
+	}
+    }break;
+    case RangeMode:{
+        auto op = StrToInt(v->getName().data());
+        switch(op){ 
+	  case RAX:
+	  case RBX:
+	  case RCX:
+	  case RDX:
+	  case RSI:
+	  case RDI:
+          case RSP:
+	  case R8:
+	  case R9:
+	  case R10:
+	  case R11:
+	  case R12:
+	  case R13:
+	  case R14:
+          case R15:
+	  {
+	    return std::make_pair(ConstantValueAssign,nullptr);
+	  }break;
+	}
+    }break;
+    case CheckMode:{
+        auto op = StrToInt(v->getName().data());
+        switch(op){ 
+	  //case RCX:
+	  //case RDX:
+          case RSP:
+          case 0:
+          //case zmm0-7:
+	  {
+	    return std::make_pair(ConstantValueAssign,nullptr);
+	  }break;
+	}
+    }break;	 
+  } 
+
+
+  errs()<<currentBB->getName()<<"               **************************************\n\n ";
+  bool bar = 0;
+  std::vector<llvm::Instruction *> vDefUse;
+  for(User *vu : v->users()){
+    //errs()<<*vu<<"\n";
+    if((vu - userInst) == 0)
+    	bar = 1;
+    auto *vui = dyn_cast<Instruction>(vu);
+    if(bar && ((vui->getParent() - currentBB) == 0)){
+    	//errs()<<*vu<<" userInst****\n";
+        vDefUse.push_back(vui);
+    }
+    /*
+    if(bar && ((vui->getParent() - thisBlock) != 0))
+    	break;
+    */
+  }
+  if(vDefUse.empty()){
+    bar = 0;
+    std::vector<Instruction *> UserOFbv;
+    for(auto &Ib : make_range(currentBB->begin(),currentBB->end())){
+      for(auto &Ub : Ib.operands()){
+        Value *Vb = Ub.get();
+        if((v - Vb)==0){
+          UserOFbv.push_back(dyn_cast<Instruction>(&Ib));
+          break;
+        }
+      }
+    }
+    for(auto vuInst : make_range(UserOFbv.rbegin(),UserOFbv.rend())){
+      if((dyn_cast<User>(vuInst) - userInst) == 0)
+        bar = 1;
+      if(bar)
+        vDefUse.push_back(vuInst);
+    }
+    
+    if(vDefUse.empty())
+      vDefUse = UserOFbv; 
+  }
+
+  auto def = dyn_cast<Instruction>(v);
+//  if(vDefUse.size() == 1){
+//        //vDefUse[0]->getOpcode() == llvm::Instruction::Store
+//        if(def){
+//          errs()<<*def<<"return def instruction\n";
+//          return CurrentBlockValueDef;
+//        }
+//        else{
+//          errs()<<" explort next BasicBlock! return v\n";
+//          return NextBlockOperating;
+//        }
+//  }
+  if(vDefUse.size() >= 1){
+  	for(auto last : vDefUse){
+          /* As user, only store is assigned to Value */ 
+          switch(last->getOpcode())
+          {
+            case llvm::Instruction::Store:{
+              auto lastS = dyn_cast<llvm::StoreInst>(last);
+              if((lastS->getPointerOperand() - v) == 0){
+                  errs()<<*last<<"\n^--last assignment\n";
+                  return std::make_pair(CurrentBlockLastAssign,last);
+              }
+              break;
+            } 
+            case llvm::Instruction::Load:
+            case llvm::Instruction::Select:
+            case llvm::Instruction::ICmp:
+            case llvm::Instruction::IntToPtr:
+            case llvm::Instruction::Add:
+            case llvm::Instruction::Sub:
+            case llvm::Instruction::And:
+            case llvm::Instruction::ZExt:
+	    case llvm::Instruction::SExt:
+            case llvm::Instruction::Trunc:
+	    case llvm::Instruction::Shl:
+	    case llvm::Instruction::LShr:
+	    case llvm::Instruction::AShr:
+            case llvm::Instruction::Or:
+	    case llvm::Instruction::Xor:
+	    case llvm::Instruction::Br:
+	    case llvm::Instruction::Call:
+	    case llvm::Instruction::Mul:			  
+              continue;
+            break;
+            default:
+              errs()<<"Unkonw instruction: "<<*last<<"\n";
+              revng_abort("Unkonw instruction!");
+            break;
+          }
+        }
+        if(def){
+            errs()<<*def<<"\n^--many or one user, return def instruction\n";
+            return std::make_pair(CurrentBlockValueDef,def);
+        }
+        else{
+            errs()<<"--no assignment, to explort next BasicBlock of Value's users\n";
+            return std::make_pair(NextBlockOperating,nullptr);
+        }
+  }
+ 
+  return std::make_pair(UnknowResult,nullptr);   
+}
+
+
 void JumpTargetManager::harvestBlockPCs(std::vector<uint64_t> &BlockPCs,llvm::BasicBlock *thisBlock){
   BasicBlock::iterator lastInst = thisBlock->end();
   auto br = dyn_cast<BranchInst>(--lastInst);
@@ -2512,6 +2712,16 @@ bool JumpTargetManager::isRaiseException(llvm::BasicBlock *thisBlock){
           return true;
         if(Callee != nullptr && Callee->getName() == "helper_load_seg")
           return true;
+        if(Callee != nullptr && Callee->getName() == "helper_write_eflags")
+          return true;
+        if(Callee != nullptr && Callee->getName() == "helper_check_iob")
+          return true;
+	if(Callee != nullptr && Callee->getName() == "helper_inb")
+          return true;
+        if(Callee != nullptr && Callee->getName() == "helper_lret_protected")
+          return true;
+        if(Callee != nullptr && Callee->getName() == "helper_raise_interrupt")
+          return true;
     }
   }
   return false;
@@ -2615,16 +2825,29 @@ uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64
         auto linst = dyn_cast<llvm::LoadInst>(I);
         Value *v = linst->getPointerOperand();
         if(dyn_cast<Constant>(v)){
+	  if(v->getName()=="rsp")
+	    continue;
           llvm::Instruction *current = dyn_cast<llvm::Instruction>(I);
           if(isAccessMemInst(current)){
             haveAccess = true;
-            if(!haveDef(current, v)){
-	      std::string illPath = path + ".illegalEntry.log";
-              std::ofstream EntryAddr;  
-	      EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
-              EntryAddr << std::hex << thisAddr << "\n";
-	      return true;
-	    } 
+	    if(badNum>3){
+              if(!haveDef1(current, v)){
+	        std::string illPath = path + ".illegalEntry.log";
+                std::ofstream EntryAddr;  
+	        EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
+                EntryAddr << std::hex << thisAddr << "\n";
+	        return true;
+	      } 	    
+	    }
+	    else{
+              if(!haveDef(current, v)){
+	        std::string illPath = path + ".illegalEntry.log";
+                std::ofstream EntryAddr;  
+	        EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
+                EntryAddr << std::hex << thisAddr << "\n";
+	        return true;
+	      } 
+	    }
           }
         }
     }
@@ -2673,6 +2896,33 @@ bool JumpTargetManager::haveDef(llvm::Instruction *I, llvm::Value *v){
    return false;
 }
 
+bool JumpTargetManager::haveDef1(llvm::Instruction *I, llvm::Value *v){
+   auto v1 = v;
+   auto operateUser = dyn_cast<User>(I);
+   auto bb = I->getParent();
+   uint32_t NUMOFCONST = 0;
+   LastAssignmentResult result;
+   llvm::Instruction *lastInst = nullptr;
+
+   std::tie(result,lastInst) = getLastAssignment1(v1,operateUser,bb,CheckMode,NUMOFCONST);
+   switch(result)
+   {
+     case CurrentBlockValueDef:
+     case CurrentBlockLastAssign:
+       return true;
+     break;
+     case NextBlockOperating:
+       return false;
+     break;
+     case ConstantValueAssign:
+       return true;  
+     break;
+     case UnknowResult:
+         revng_abort("Unknow of result!");
+     break;
+   }
+   return false;
+}
 bool JumpTargetManager::isIllegalStaticAddr(uint64_t pc){
   if(ro_StartAddr<=pc and pc<ro_EndAddr)
     return true;

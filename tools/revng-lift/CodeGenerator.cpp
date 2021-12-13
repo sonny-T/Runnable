@@ -995,7 +995,8 @@ void CodeGenerator::translate(uint64_t VirtualAddress) {
 
     if(*ptc.isIllegal)
       DynamicVirtualAddress = tmpVA + ConsumedSize;
-  
+ 
+    errs()<<EntryFlag<<"\n"; 
     if(EntryFlag){
       EntryFlag = JumpTargets.handleEntryBlock(BlockBRs, tmpVA, SuspectEntryAddr, Translator.branchcontent(), getPath());
       if(EntryFlag){
