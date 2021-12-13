@@ -2825,29 +2825,29 @@ uint32_t JumpTargetManager::handleEntryBlock(llvm::BasicBlock *thisBlock, uint64
         auto linst = dyn_cast<llvm::LoadInst>(I);
         Value *v = linst->getPointerOperand();
         if(dyn_cast<Constant>(v)){
-	  if(v->getName()=="rsp")
-	    continue;
+	        if(v->getName()=="rsp")
+	          continue;
           llvm::Instruction *current = dyn_cast<llvm::Instruction>(I);
           if(isAccessMemInst(current)){
             haveAccess = true;
-	    if(badNum>3){
+	          if(badNum>3){
               if(!haveDef1(current, v)){
-	        std::string illPath = path + ".illegalEntry.log";
+	              std::string illPath = path + ".illegalEntry.log";
                 std::ofstream EntryAddr;  
-	        EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
+	              EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
                 EntryAddr << std::hex << thisAddr << "\n";
-	        return true;
-	      } 	    
-	    }
-	    else{
+	              return true;
+	            } 	    
+	          }
+	          else{
               if(!haveDef(current, v)){
-	        std::string illPath = path + ".illegalEntry.log";
+	              std::string illPath = path + ".illegalEntry.log";
                 std::ofstream EntryAddr;  
-	        EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
+	              EntryAddr.open(illPath,std::ofstream::out | std::ofstream::app);
                 EntryAddr << std::hex << thisAddr << "\n";
-	        return true;
-	      } 
-	    }
+	              return true;
+	            } 
+	          }
           }
         }
     }
